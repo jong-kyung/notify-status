@@ -1,4 +1,4 @@
-//! Public response types. Filled out in U2.
+//! Public response types and constructors.
 
 #[napi(string_enum = "camelCase")]
 pub enum Authorization {
@@ -25,11 +25,38 @@ pub struct NotificationStatus {
 }
 
 impl NotificationStatus {
-    pub fn unsupported(platform: String, reason: Reason) -> Self {
+    pub fn granted(platform: impl Into<String>, do_not_disturb: bool) -> Self {
+        Self {
+            authorization: Authorization::Granted,
+            do_not_disturb,
+            platform: platform.into(),
+            reason: None,
+        }
+    }
+
+    pub fn denied(platform: impl Into<String>, do_not_disturb: bool) -> Self {
+        Self {
+            authorization: Authorization::Denied,
+            do_not_disturb,
+            platform: platform.into(),
+            reason: None,
+        }
+    }
+
+    pub fn not_determined(platform: impl Into<String>, do_not_disturb: bool) -> Self {
+        Self {
+            authorization: Authorization::NotDetermined,
+            do_not_disturb,
+            platform: platform.into(),
+            reason: None,
+        }
+    }
+
+    pub fn unsupported(platform: impl Into<String>, reason: Reason) -> Self {
         Self {
             authorization: Authorization::Unsupported,
             do_not_disturb: false,
-            platform,
+            platform: platform.into(),
             reason: Some(reason),
         }
     }

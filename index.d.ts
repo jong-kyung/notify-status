@@ -5,4 +5,11 @@ export type {
 } from './binding';
 export { getNotificationStatus } from './binding';
 
-// isEffectivelyEnabled is added in U2.
+import type { NotificationStatus } from './binding';
+
+/**
+ * Returns `true` iff `status.authorization === 'granted'` and `status.doNotDisturb === false`.
+ *
+ * Pure JS helper — does not call into Rust.
+ */
+export declare function isEffectivelyEnabled(status: NotificationStatus): boolean;
