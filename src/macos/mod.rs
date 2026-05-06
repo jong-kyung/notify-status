@@ -27,6 +27,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use crate::status::{NotificationStatus, Reason};
 
 mod authorization;
+mod dnd;
+mod dnd_parse;
+mod version;
 
 #[cfg(test)]
 mod authorization_tests;
@@ -36,8 +39,9 @@ pub fn query() -> NotificationStatus {
         return NotificationStatus::unsupported("darwin", Reason::NoBundleId);
     }
 
-    // DND is filled in by U5; for now report `false` (Focus state unknown).
-    let dnd = false;
+    // DND read is best-effort and never fails. Wrap it in catch_unwind too —
+    // a serde_json panic on a malformed file should not abort the process.
+    let dnd = catch_unwind(AssertUnwindSafe(dnd::read_dnd)).unwrap_or(false);
 
     let auth_result = catch_unwind(AssertUnwindSafe(|| {
         objc2::exception::catch(authorization::read_authorization)
@@ -55,7 +59,7 @@ pub fn query() -> NotificationStatus {
         Ok(Ok(Err(_))) => NotificationStatus::unsupported("darwin", Reason::InternalError),
         // ObjC NSException caught by exception::catch.
         Ok(Err(_)) => NotificationStatus::unsupported("darwin", Reason::InternalError),
-        // Rust panic caught by catch_unwind (including a panic rethrown by exception::catch).
+        // Rust panic caught by catch_unwind (including a panic propagated by exception::catch).
         Err(_) => NotificationStatus::unsupported("darwin", Reason::InternalError),
     }
 }
