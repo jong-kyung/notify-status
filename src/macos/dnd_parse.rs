@@ -89,7 +89,9 @@ mod tests {
     #[test]
     fn data_or_records_with_wrong_type_is_inactive() {
         assert!(!parse_dnd_active(r#"{ "data": "not an array" }"#));
-        assert!(!parse_dnd_active(r#"{ "data": [{ "storeAssertionRecords": 42 }] }"#));
+        assert!(!parse_dnd_active(
+            r#"{ "data": [{ "storeAssertionRecords": 42 }] }"#
+        ));
     }
 
     #[test]

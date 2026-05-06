@@ -34,8 +34,8 @@ pub enum AuthError {
 /// safer interpretation than granting.
 pub fn map_notification_setting(raw: i32) -> Authorization {
     match raw {
-        0 => Authorization::Granted, // Enabled
-        1 | 2 | 3 | 4 => Authorization::Denied, // DisabledFor* / DisabledBy*
+        0 => Authorization::Granted,    // Enabled
+        1..=4 => Authorization::Denied, // DisabledFor* / DisabledBy*
         _ => Authorization::Denied,
     }
 }
@@ -95,13 +95,12 @@ fn package_aumid_set() -> bool {
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    let notifier = ToastNotificationManager::CreateToastNotifier().map_err(|err| {
-        classify_hresult(err.code().0)
-    })?;
+    let notifier = ToastNotificationManager::CreateToastNotifier()
+        .map_err(|err| classify_hresult(err.code().0))?;
 
-    let setting = notifier.Setting().map_err(|err| {
-        classify_hresult(err.code().0)
-    })?;
+    let setting = notifier
+        .Setting()
+        .map_err(|err| classify_hresult(err.code().0))?;
 
     Ok(map_notification_setting(setting.0))
 }
@@ -128,7 +127,10 @@ mod tests {
 
     #[test]
     fn classifies_no_aumid_hresults_correctly() {
-        assert_eq!(classify_hresult(HRESULT_ERROR_NOT_FOUND), AuthError::NoAumid);
+        assert_eq!(
+            classify_hresult(HRESULT_ERROR_NOT_FOUND),
+            AuthError::NoAumid
+        );
         assert_eq!(classify_hresult(HRESULT_E_INVALIDARG), AuthError::NoAumid);
     }
 

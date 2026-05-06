@@ -34,14 +34,15 @@ fn nested_catchers_defang_a_rust_panic_inside_exception_catch_closure() {
         })
     }));
 
-    assert!(result.is_err(), "outer catch_unwind must intercept the propagated panic");
+    assert!(
+        result.is_err(),
+        "outer catch_unwind must intercept the propagated panic"
+    );
 }
 
 #[test]
 fn nested_catchers_succeed_for_a_clean_closure() {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        objc2::exception::catch(|| 42_i64)
-    }));
+    let result = catch_unwind(AssertUnwindSafe(|| objc2::exception::catch(|| 42_i64)));
 
     match result {
         Ok(Ok(value)) => assert_eq!(value, 42),

@@ -38,7 +38,7 @@ pub fn map_authorization_status(raw: i64) -> Authorization {
     match raw {
         0 => Authorization::NotDetermined,
         1 => Authorization::Denied,
-        2 | 3 | 4 => Authorization::Granted,
+        2..=4 => Authorization::Granted,
         _ => Authorization::NotDetermined,
     }
 }
@@ -90,6 +90,9 @@ mod tests {
     fn out_of_range_values_default_to_not_determined() {
         assert_eq!(map_authorization_status(-1), Authorization::NotDetermined);
         assert_eq!(map_authorization_status(99), Authorization::NotDetermined);
-        assert_eq!(map_authorization_status(i64::MAX), Authorization::NotDetermined);
+        assert_eq!(
+            map_authorization_status(i64::MAX),
+            Authorization::NotDetermined
+        );
     }
 }
