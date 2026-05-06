@@ -1,5 +1,6 @@
 //! Public response types and constructors.
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[napi(string_enum = "camelCase")]
 pub enum Authorization {
     Granted,
@@ -8,6 +9,7 @@ pub enum Authorization {
     Unsupported,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[napi(string_enum = "camelCase")]
 pub enum Reason {
     NoBundleId,

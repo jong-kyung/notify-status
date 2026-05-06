@@ -17,7 +17,7 @@ tokio       = { version = "1", features = ["rt"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", features = ["exception"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSString", "NSDictionary", "NSArray", "NSError"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSString", "NSDictionary", "NSArray", "NSError", "NSException", "NSObjCRuntime"] }
 objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationSettings"] }
 block2 = "0.6"
 serde = { version = "1", features = ["derive"] }
