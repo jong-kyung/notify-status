@@ -12,7 +12,8 @@ export declare const enum Authorization {
  *
  * The returned Promise NEVER rejects. Environmental failures collapse to
  * `{ authorization: 'unsupported', reason: 'noBundleId' | 'noAumid' | 'unsupportedPlatform' }`,
- * and library/runtime failures collapse to `reason: 'internalError'`.
+ * and library/runtime failures (panics, JoinError, unmapped HRESULTs, parse failures)
+ * collapse to `reason: 'internalError'`.
  */
 export declare function getNotificationStatus(): Promise<NotificationStatus>
 
