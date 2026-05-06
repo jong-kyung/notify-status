@@ -1,0 +1,7 @@
+target/
+node_modules/
+npm/
+*.node
+.DS_Store
+.vscode/
+.idea/
