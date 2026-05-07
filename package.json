@@ -1,11 +1,11 @@
 {
   "name": "notify-status",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Cross-platform notification authorization and DND status for Node",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jklee/notify-status.git"
+    "url": "git+https://github.com/jong-kyung/notify-status.git"
   },
   "files": [
     "dist/",
