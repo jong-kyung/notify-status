@@ -206,9 +206,7 @@ jobs:
         with:
           path: artifacts
       - name: create npm dirs
-        # napi artifacts writes into npm/<target>/ but doesn't mkdir parents.
-        # npm/ is gitignored, so without this step the publish job fails with
-        # ENOENT on the first tag-driven run.
+        # napi artifacts won't mkdir; npm/ is gitignored.
         run: vp exec napi create-npm-dirs
       - name: move artifacts
         run: vp run artifacts
@@ -216,14 +214,7 @@ jobs:
       - name: build ts (vp pack)
         run: vp pack
       - name: publish
-        # `npm publish` runs the prepublishOnly lifecycle script
-        # (= `napi prepublish -t npm`), which publishes per-triple
-        # subpackages and creates the GitHub release. Both need
-        # NODE_AUTH_TOKEN and GITHUB_TOKEN, which are inherited by the
-        # spawned npm child processes from this step's env. A separate
-        # explicit `prepublish` step would either run without auth (when
-        # no env: block) or duplicate the lifecycle work, causing 409s on
-        # subpackage re-publish.
+        # GITHUB_TOKEN is needed by the prepublishOnly lifecycle (napi prepublish creates the GH release).
         run: |
           npm config set provenance true
           npm publish --access public
@@ -231,10 +222,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: rename release
-        # napi prepublish creates the GitHub release with name = commit
-        # message (often a merge commit subject). Override to the canonical
-        # `<package>@<version>` format. ${VAR#v} strips the leading `v`
-        # from the tag (v1.0.0 → 1.0.0).
+        # napi prepublish names the release after the commit subject.
         shell: bash
         run: gh release edit "$GITHUB_REF_NAME" --title "${APP_NAME}@${GITHUB_REF_NAME#v}"
         env:
