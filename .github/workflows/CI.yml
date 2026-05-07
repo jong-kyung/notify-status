@@ -205,6 +205,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: create npm dirs
+        # napi artifacts writes into npm/<target>/ but doesn't mkdir parents.
+        # npm/ is gitignored, so without this step the publish job fails with
+        # ENOENT on the first tag-driven run.
+        run: vp exec napi create-npm-dirs
       - name: move artifacts
         run: vp run artifacts
       - run: ls -R ./npm
