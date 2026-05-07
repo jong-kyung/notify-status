@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-07
+
 ### Changed
 
 - Toolchain migrated to [Vite+](https://viteplus.dev): `vite.config.ts` consolidates `test` (Vitest), `pack` (tsdown), `lint` (Oxlint), and `fmt` (Oxfmt) blocks; CI uses `voidzero-dev/setup-vp@v1` in place of separate Node + pnpm + cache setup.
@@ -46,4 +48,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Linux: returns `{ authorization: 'unsupported', doNotDisturb: false, platform: 'linux', reason: 'unsupportedPlatform' }`. No prebuilt artifact; consumer hosts that fail to resolve a per-triple `*.node` will get `unsupportedPlatform` from the JS-level no-op.
 - NAPI-RS prebuilt distribution via per-triple npm subpackages, GitHub Actions matrix build/publish, and a `windows-11-arm` smoke test that verifies the cross-compiled aarch64 binary loads on real ARM64 Windows before publish.
 
-[0.0.1]: https://github.com/jklee/notify-status/releases/tag/v0.0.1
+[1.0.0]: https://github.com/jong-kyung/notify-status/releases/tag/v1.0.0
+[0.0.1]: https://github.com/jong-kyung/notify-status/releases/tag/v0.0.1
