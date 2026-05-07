@@ -9,14 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Toolchain migrated to [Vite+](https://viteplus.dev): `vite.config.ts` consolidates `test` (Vitest), `pack` (tsdown), `lint` (Oxlint), `fmt` (Oxfmt), and `staged` (commit hooks) blocks; CI uses `voidzero-dev/setup-vp@v1` in place of separate Node + pnpm + cache setup.
+- Toolchain migrated to [Vite+](https://viteplus.dev): `vite.config.ts` consolidates `test` (Vitest), `pack` (tsdown), `lint` (Oxlint), and `fmt` (Oxfmt) blocks; CI uses `voidzero-dev/setup-vp@v1` in place of separate Node + pnpm + cache setup.
 - TypeScript wrapper now built with **tsdown** (`vp pack`) instead of `tsc`. Output is dual-format: ESM at `dist/index.mjs` + CJS at `dist/index.cjs` + types at `dist/index.d.mts` / `dist/index.d.cts`. Consumers using `require('notify-status')` are now supported.
 - NAPI binding regenerated as CommonJS (`binding.cjs` / `binding.d.cts`) so it interops cleanly with both the new ESM and CJS dist outputs without `--experimental-require-module` flags.
 
 ### Added
 
 - `vp check` (Oxfmt + Oxlint + tsgolint type-check) as the single static-check entry point.
-- `vp staged` pre-commit hook installed via `vp config` runs `vp check --fix` on staged TypeScript/JavaScript files.
+- Pre-commit hooks via [husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/okonet/lint-staged) running `vp fmt --write` and `vp lint --fix` on staged TypeScript/JavaScript files. `prepare: husky` script installs hooks automatically on `pnpm install`.
+
+### Fixed
+
+- CI lint job no longer fails on `__test__/index.test-d.ts` referencing `dist/index.mjs` before build — tsd files are excluded from `vp check` and verified separately via `vp run test:types` after build.
 
 ## [0.0.1] — 2026-05-06
 

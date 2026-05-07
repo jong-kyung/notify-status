@@ -24,6 +24,9 @@ export default defineConfig({
       'binding.cjs',
       'binding.d.cts',
       'notify-status.*.node',
+      // tsd files import from ../dist/index.mjs which only exists after `vp pack`.
+      // tsd has its own type-check pass via `vp run test:types`.
+      '__test__/**/*.test-d.ts',
     ],
     options: {
       typeAware: true,
@@ -49,8 +52,5 @@ export default defineConfig({
     ],
     singleQuote: true,
     trailingComma: 'all',
-  },
-  staged: {
-    '*.{ts,mts,cts,js,mjs,cjs}': 'vp check --fix',
   },
 });
