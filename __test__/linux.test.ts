@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vite-plus/test';
 
 import { getNotificationStatus } from '../src/index.js';
 
@@ -23,9 +23,7 @@ describe('Linux — AE5 (unsupported platform)', () => {
   });
 
   linuxTest('ten concurrent calls all resolve identically', async () => {
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => getNotificationStatus()),
-    );
+    const results = await Promise.all(Array.from({ length: 10 }, () => getNotificationStatus()));
     for (const r of results) {
       expect(r.platform).toBe('linux');
       expect(r.authorization).toBe('unsupported');

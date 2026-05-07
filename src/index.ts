@@ -1,11 +1,12 @@
-import { getNotificationStatus as bindingGetNotificationStatus } from '../binding.js';
-import type { NotificationStatus } from '../binding.js';
+import { createRequire } from 'node:module';
+import type { NotificationStatus } from '../binding.cjs';
 
-export type {
-  Authorization,
-  Reason,
-  NotificationStatus,
-} from '../binding.js';
+export type { Authorization, Reason, NotificationStatus } from '../binding.cjs';
+
+const require = createRequire(import.meta.url);
+const binding: {
+  getNotificationStatus: () => Promise<NotificationStatus>;
+} = require('../binding.cjs');
 
 /**
  * Read-only query for the host's notification authorization and DND state.
@@ -16,19 +17,13 @@ export type {
  * collapse to `reason: 'internalError'`.
  */
 export const getNotificationStatus: () => Promise<NotificationStatus> =
-  bindingGetNotificationStatus;
+  binding.getNotificationStatus;
 
 /**
  * Returns `true` iff `status.authorization === 'granted'` and `status.doNotDisturb === false`.
  *
  * Pure JS helper — does not call into Rust.
  */
-export function isEffectivelyEnabled(
-  status: NotificationStatus | null | undefined,
-): boolean {
-  return (
-    status != null &&
-    status.authorization === 'granted' &&
-    status.doNotDisturb === false
-  );
+export function isEffectivelyEnabled(status: NotificationStatus | null | undefined): boolean {
+  return status != null && status.authorization === 'granted' && status.doNotDisturb === false;
 }

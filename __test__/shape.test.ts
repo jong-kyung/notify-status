@@ -1,27 +1,12 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vite-plus/test';
 
 import * as lib from '../src/index.js';
 import { getNotificationStatus, isEffectivelyEnabled } from '../src/index.js';
 import type { NotificationStatus } from '../src/index.js';
 
-const ALLOWED_KEYS = new Set([
-  'authorization',
-  'doNotDisturb',
-  'platform',
-  'reason',
-]);
-const VALID_AUTHORIZATIONS = new Set([
-  'granted',
-  'denied',
-  'notDetermined',
-  'unsupported',
-]);
-const VALID_REASONS = new Set([
-  'noBundleId',
-  'noAumid',
-  'unsupportedPlatform',
-  'internalError',
-]);
+const ALLOWED_KEYS = new Set(['authorization', 'doNotDisturb', 'platform', 'reason']);
+const VALID_AUTHORIZATIONS = new Set(['granted', 'denied', 'notDetermined', 'unsupported']);
+const VALID_REASONS = new Set(['noBundleId', 'noAumid', 'unsupportedPlatform', 'internalError']);
 
 describe('exports', () => {
   test('getNotificationStatus is a function', () => {

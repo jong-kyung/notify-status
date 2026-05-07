@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vite-plus/test';
 
 import { getNotificationStatus } from '../src/index.js';
 
@@ -21,9 +21,7 @@ describe('Windows — AE7 (no AUMID)', () => {
   });
 
   winTest('ten concurrent calls all resolve identically', async () => {
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => getNotificationStatus()),
-    );
+    const results = await Promise.all(Array.from({ length: 10 }, () => getNotificationStatus()));
     for (const r of results) {
       expect(r.platform).toBe('win32');
       expect(r.authorization).toBe('unsupported');
@@ -37,9 +35,7 @@ describe('Windows — AE7 (no AUMID)', () => {
   });
 
   winTest('50-call burst maintains payload shape and never rejects', async () => {
-    const results = await Promise.all(
-      Array.from({ length: 50 }, () => getNotificationStatus()),
-    );
+    const results = await Promise.all(Array.from({ length: 50 }, () => getNotificationStatus()));
     expect(results).toHaveLength(50);
     for (const r of results) {
       expect(r.platform).toBe('win32');

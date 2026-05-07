@@ -2,16 +2,6 @@
   "name": "notify-status",
   "version": "0.0.1",
   "description": "Cross-platform notification authorization and DND status for Node",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
-  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -19,13 +9,52 @@
   },
   "files": [
     "dist/",
-    "binding.js",
-    "binding.d.ts",
+    "binding.cjs",
+    "binding.d.cts",
     "*.node",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build:native": "napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts",
+    "build:native:debug": "napi build --platform --no-const-enum --js binding.cjs --dts binding.d.cts",
+    "build:ts": "vp pack",
+    "build": "pnpm run build:native && pnpm run build:ts",
+    "build:debug": "pnpm run build:native:debug && pnpm run build:ts",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "vp test",
+    "test:watch": "vp test watch",
+    "test:types": "tsd",
+    "check": "vp check",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.6.2",
+    "@types/node": "^22.0.0",
+    "tsd": "^0.31.2",
+    "vite-plus": "^0.1.20"
+  },
   "napi": {
     "binaryName": "notify-status",
     "targets": [
@@ -35,32 +64,11 @@
       "aarch64-pc-windows-msvc"
     ]
   },
+  "tsd": {
+    "directory": "__test__"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
-  "packageManager": "pnpm@10.33.3",
-  "scripts": {
-    "build:native": "napi build --platform --release --esm --no-const-enum --js binding.js --dts binding.d.ts",
-    "build:native:debug": "napi build --platform --esm --no-const-enum --js binding.js --dts binding.d.ts",
-    "build:ts": "tsc",
-    "build": "pnpm run build:native && pnpm run build:ts",
-    "build:debug": "pnpm run build:native:debug && pnpm run build:ts",
-    "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:types": "tsd",
-    "universal": "napi universal",
-    "version": "napi version"
-  },
-  "devDependencies": {
-    "@napi-rs/cli": "^3.6.2",
-    "@types/node": "^22.0.0",
-    "tsd": "^0.31.2",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
-  },
-  "tsd": {
-    "directory": "__test__"
-  }
+  "packageManager": "pnpm@10.33.3"
 }

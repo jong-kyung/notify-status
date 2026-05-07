@@ -1,18 +1,7 @@
-import {
-  expectAssignable,
-  expectNotAssignable,
-  expectType,
-} from 'tsd';
+import { expectAssignable, expectNotAssignable, expectType } from 'tsd';
 
-import {
-  getNotificationStatus,
-  isEffectivelyEnabled,
-} from '../dist/index.js';
-import type {
-  Authorization,
-  NotificationStatus,
-  Reason,
-} from '../dist/index.js';
+import { getNotificationStatus, isEffectivelyEnabled } from '../dist/index.mjs';
+import type { Authorization, NotificationStatus, Reason } from '../dist/index.mjs';
 
 // R1 / R2 — getNotificationStatus signature.
 expectType<() => Promise<NotificationStatus>>(getNotificationStatus);
