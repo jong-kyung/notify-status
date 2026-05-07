@@ -230,3 +230,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: rename release
+        # napi prepublish creates the GitHub release with name = commit
+        # message (often a merge commit subject). Override to the canonical
+        # `<package>@<version>` format. ${VAR#v} strips the leading `v`
+        # from the tag (v1.0.0 → 1.0.0).
+        shell: bash
+        run: gh release edit "$GITHUB_REF_NAME" --title "${APP_NAME}@${GITHUB_REF_NAME#v}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

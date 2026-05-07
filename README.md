@@ -1,10 +1,15 @@
 # notify-status
 
+[![npm version](https://img.shields.io/npm/v/notify-status.svg)](https://www.npmjs.com/package/notify-status)
+[![npm downloads](https://img.shields.io/npm/dm/notify-status.svg)](https://www.npmjs.com/package/notify-status)
+[![license](https://img.shields.io/npm/l/notify-status.svg)](LICENSE)
+
 Cross-platform notification authorization and Do Not Disturb status for Node /
 Electron, distributed as NAPI-RS prebuilt binaries.
 
-```
-npm install notify-status
+```sh
+pnpm add notify-status
+# or: npm install notify-status / yarn add notify-status
 ```
 
 ```js
@@ -29,6 +34,16 @@ if (isEffectivelyEnabled(status)) {
 
 The returned Promise **never rejects**. Every error path resolves to a
 structured `unsupported` payload — your code only needs the `.then` branch.
+
+## API
+
+| Export | Kind | Signature / Shape |
+| --- | --- | --- |
+| `getNotificationStatus` | function | `() => Promise<NotificationStatus>` |
+| `isEffectivelyEnabled` | function | `(status: NotificationStatus \| null \| undefined) => boolean` |
+| `NotificationStatus` | type | `{ authorization: Authorization; doNotDisturb: boolean; platform: string; reason?: Reason }` |
+| `Authorization` | type | `'granted' \| 'denied' \| 'notDetermined' \| 'unsupported'` |
+| `Reason` | type | `'noBundleId' \| 'noAumid' \| 'unsupportedPlatform' \| 'internalError'` |
 
 ## Platform support
 
@@ -86,6 +101,72 @@ function explain(s) {
 
 When you need the user to grant permission, call Electron's `new Notification()`
 directly — `notify-status` is read-only and will not prompt.
+
+## More examples
+
+### Plain Node.js / CLI
+
+For sysadmin scripts, CI smoke tests, or any headless-Node usage — Electron is
+not required.
+
+```js
+// check-notifications.mjs
+import { getNotificationStatus, isEffectivelyEnabled } from 'notify-status';
+
+const status = await getNotificationStatus();
+console.log(JSON.stringify(status, null, 2));
+process.exit(isEffectivelyEnabled(status) ? 0 : 1);
+```
+
+```sh
+node check-notifications.mjs && echo ready || echo blocked
+```
+
+Running a bare `node` script on macOS returns
+`{ authorization: 'unsupported', reason: 'noBundleId' }` — that is the correct
+answer for an unbundled host process. Run the same script from inside a
+packaged `.app` (or from a packaged Electron / Tauri host) to read the host's
+real permission state.
+
+### TypeScript — exhaustive narrowing
+
+`Authorization` and `Reason` are exported as string-literal unions, so a
+`switch` on `status.authorization` narrows exhaustively. With `strict` (or
+`noImplicitReturns`), adding a new variant to either union without a matching
+`case` surfaces as a type error.
+
+```ts
+import {
+  getNotificationStatus,
+  type NotificationStatus,
+  type Reason,
+} from 'notify-status';
+
+function explain(status: NotificationStatus): string {
+  switch (status.authorization) {
+    case 'granted':
+      return status.doNotDisturb ? 'focus_active' : 'ready';
+    case 'denied':
+      return 'permission_denied';
+    case 'notDetermined':
+      return 'will_prompt_on_first_use';
+    case 'unsupported':
+      return remediate(status.reason);
+  }
+}
+
+function remediate(reason?: Reason): string {
+  switch (reason) {
+    case 'noBundleId':          return 'unsupported:add_bundle_id_to_app';
+    case 'noAumid':             return 'unsupported:set_aumid_on_startup';
+    case 'unsupportedPlatform': return 'unsupported:platform';
+    case 'internalError':       return 'unsupported:internal_error';
+    case undefined:             return 'unsupported:unknown';
+  }
+}
+
+const message: string = explain(await getNotificationStatus());
+```
 
 ## Build from source
 
