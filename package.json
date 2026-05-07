@@ -1,8 +1,33 @@
 {
   "name": "notify-status",
   "version": "1.0.0",
-  "description": "Cross-platform notification authorization and DND status for Node",
+  "description": "Cross-platform notification authorization and Do Not Disturb status for Node / Electron (macOS + Windows, NAPI-RS prebuilt)",
+  "keywords": [
+    "cross-platform",
+    "dnd",
+    "do-not-disturb",
+    "electron",
+    "focus-assist",
+    "focus-mode",
+    "macos",
+    "napi",
+    "napi-rs",
+    "native",
+    "notification",
+    "notifications",
+    "quiet-hours",
+    "windows"
+  ],
+  "homepage": "https://github.com/jong-kyung/notify-status#readme",
+  "bugs": {
+    "url": "https://github.com/jong-kyung/notify-status/issues"
+  },
   "license": "MIT",
+  "author": {
+    "name": "jong-kyung",
+    "email": "gyoung3063413@naver.com",
+    "url": "https://github.com/jong-kyung"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jong-kyung/notify-status.git"
