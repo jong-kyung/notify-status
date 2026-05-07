@@ -8,7 +8,11 @@ npm install notify-status
 ```
 
 ```js
-const { getNotificationStatus, isEffectivelyEnabled } = require('notify-status');
+// ESM
+import { getNotificationStatus, isEffectivelyEnabled } from 'notify-status';
+
+// CJS
+// const { getNotificationStatus, isEffectivelyEnabled } = require('notify-status');
 
 const status = await getNotificationStatus();
 // {
@@ -86,16 +90,19 @@ directly — `notify-status` is read-only and will not prompt.
 ## Build from source
 
 You normally do not need to build; `npm install` pulls a prebuilt binary for
-your triple. To build locally:
+your triple. To build locally with [Vite+](https://viteplus.dev):
 
 ```sh
-npm install
-npm run build       # release
-npm run build:debug # debug
-npm test
+vp install
+vp run build         # release (napi build + vp pack)
+vp run build:debug   # debug
+vp check             # fmt + lint + type-check
+vp test              # vitest
+vp run test:types    # tsd type contract
 ```
 
-Cargo unit tests:
+Plain `pnpm` works too if `vp` is not installed — every script delegates
+through `pnpm run` under the hood. Cargo unit tests:
 
 ```sh
 cargo test --lib
