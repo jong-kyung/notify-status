@@ -215,9 +215,15 @@ jobs:
       - run: ls -R ./npm
       - name: build ts (vp pack)
         run: vp pack
-      - name: prepublish
-        run: vp run prepublishOnly
       - name: publish
+        # `npm publish` runs the prepublishOnly lifecycle script
+        # (= `napi prepublish -t npm`), which publishes per-triple
+        # subpackages and creates the GitHub release. Both need
+        # NODE_AUTH_TOKEN and GITHUB_TOKEN, which are inherited by the
+        # spawned npm child processes from this step's env. A separate
+        # explicit `prepublish` step would either run without auth (when
+        # no env: block) or duplicate the lifecycle work, causing 409s on
+        # subpackage re-publish.
         run: |
           npm config set provenance true
           npm publish --access public
