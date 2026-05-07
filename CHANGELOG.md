@@ -20,7 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- CI lint job no longer fails on `__test__/index.test-d.ts` referencing `dist/index.mjs` before build — tsd files are excluded from `vp check` and verified separately via `vp run test:types` after build.
+- CI lint job no longer fails on `__test__/index.test-d.ts` referencing `dist/index.mjs` before build — `**/*.test-d.ts` is excluded from `vp check` and verified separately via `vp run test:types` after build.
+- `.husky/pre-commit` now actually invokes `pnpm exec lint-staged` instead of the husky-init default of `pnpm test`, so the documented staged-file `vp check --fix` path runs on every commit.
+- arm64 cross-compile matrix entry produces a correctly named `notify-status.win32-arm64-msvc.node` artifact — the previous `vp run build:native -- --target X` form caused cargo to receive duplicate `--target` flags and silently built x64.
+- arm64 smoke job's CJS load path now attaches `.catch()` so an unhandled promise rejection deterministically exits with code 1 instead of relying on Node's default unhandled-rejection behavior.
+
+### Release process
+
+- npm publish now triggers on git tags matching `v*` (e.g. `git tag v0.0.2 && git push origin v0.0.2`) instead of a brittle `head_commit.message contains 'release'` check that was unreachable through the standard merge-commit workflow. Branch pushes can no longer publish.
 
 ## [0.0.1] — 2026-05-06
 
