@@ -1,6 +1,7 @@
 target/
 node_modules/
 npm/
+dist/
 *.node
 .DS_Store
 .vscode/

@@ -2,23 +2,59 @@
   "name": "notify-status",
   "version": "0.0.1",
   "description": "Cross-platform notification authorization and DND status for Node",
-  "main": "index.js",
-  "types": "index.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jklee/notify-status.git"
   },
   "files": [
-    "index.js",
-    "index.d.ts",
-    "binding.js",
-    "binding.d.ts",
+    "dist/",
+    "binding.cjs",
+    "binding.d.cts",
     "*.node",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build:native": "napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts",
+    "build:native:debug": "napi build --platform --no-const-enum --js binding.cjs --dts binding.d.cts",
+    "build:ts": "vp pack",
+    "build": "pnpm run build:native && pnpm run build:ts",
+    "build:debug": "pnpm run build:native:debug && pnpm run build:ts",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "vp test",
+    "test:watch": "vp test watch",
+    "test:types": "tsd",
+    "check": "vp check",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.6.2",
+    "@types/node": "^22.0.0",
+    "tsd": "^0.31.2",
+    "vite-plus": "^0.1.20"
+  },
   "napi": {
     "binaryName": "notify-status",
     "targets": [
@@ -28,26 +64,11 @@
       "aarch64-pc-windows-msvc"
     ]
   },
+  "tsd": {
+    "directory": "__test__"
+  },
   "engines": {
-    "node": ">= 16"
+    "node": ">=24.0.0"
   },
-  "scripts": {
-    "build": "napi build --platform --release --js binding.js --dts binding.d.ts",
-    "build:debug": "napi build --platform --js binding.js --dts binding.d.ts",
-    "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
-    "universal": "napi universal",
-    "version": "napi version"
-  },
-  "devDependencies": {
-    "@napi-rs/cli": "^3.0.0",
-    "ava": "^6.0.0"
-  },
-  "ava": {
-    "extensions": ["mjs"],
-    "files": ["__test__/**/*.spec.mjs"],
-    "timeout": "60s",
-    "workerThreads": false
-  }
+  "packageManager": "pnpm@10.33.3"
 }
