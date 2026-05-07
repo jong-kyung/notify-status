@@ -49,16 +49,16 @@ jobs:
         include:
           - host: macos-latest
             target: aarch64-apple-darwin
-            build: vp run build:native -- --target aarch64-apple-darwin
+            build: vp pm exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target aarch64-apple-darwin
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: vp run build:native -- --target x86_64-apple-darwin
+            build: vp pm exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target x86_64-apple-darwin
           - host: windows-latest
             target: x86_64-pc-windows-msvc
-            build: vp run build:native -- --target x86_64-pc-windows-msvc
+            build: vp pm exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target x86_64-pc-windows-msvc
           - host: windows-latest
             target: aarch64-pc-windows-msvc
-            build: vp run build:native -- --target aarch64-pc-windows-msvc
+            build: vp pm exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
       - uses: voidzero-dev/setup-vp@v1
