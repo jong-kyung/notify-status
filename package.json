@@ -2,16 +2,23 @@
   "name": "notify-status",
   "version": "0.0.1",
   "description": "Cross-platform notification authorization and DND status for Node",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jklee/notify-status.git"
   },
   "files": [
-    "index.js",
-    "index.d.ts",
+    "dist/",
     "binding.js",
     "binding.d.ts",
     "*.node",
@@ -29,25 +36,31 @@
     ]
   },
   "engines": {
-    "node": ">= 16"
+    "node": ">=24.0.0"
   },
+  "packageManager": "pnpm@10.33.3",
   "scripts": {
-    "build": "napi build --platform --release --js binding.js --dts binding.d.ts",
-    "build:debug": "napi build --platform --js binding.js --dts binding.d.ts",
+    "build:native": "napi build --platform --release --esm --no-const-enum --js binding.js --dts binding.d.ts",
+    "build:native:debug": "napi build --platform --esm --no-const-enum --js binding.js --dts binding.d.ts",
+    "build:ts": "tsc",
+    "build": "pnpm run build:native && pnpm run build:ts",
+    "build:debug": "pnpm run build:native:debug && pnpm run build:ts",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:types": "tsd",
     "universal": "napi universal",
     "version": "napi version"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.0.0",
-    "ava": "^6.0.0"
+    "@napi-rs/cli": "^3.6.2",
+    "@types/node": "^22.0.0",
+    "tsd": "^0.31.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
   },
-  "ava": {
-    "extensions": ["mjs"],
-    "files": ["__test__/**/*.spec.mjs"],
-    "timeout": "60s",
-    "workerThreads": false
+  "tsd": {
+    "directory": "__test__"
   }
 }
