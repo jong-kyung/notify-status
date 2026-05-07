@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `vp check` (Oxfmt + Oxlint + tsgolint type-check) as the single static-check entry point.
-- Pre-commit hooks via [husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/okonet/lint-staged) running `vp fmt --write` and `vp lint --fix` on staged TypeScript/JavaScript files. `prepare: husky` script installs hooks automatically on `pnpm install`.
+- Pre-commit hooks via [husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/okonet/lint-staged) running `vp check --fix` (fmt + lint + type-check) on staged TypeScript/JavaScript files. `prepare: husky` script installs hooks automatically on `pnpm install`.
 
 ### Fixed
 
