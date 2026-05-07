@@ -1,10 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":semanticCommits",
-    ":timezone(Asia/Seoul)"
-  ],
+  "extends": ["config:recommended", ":semanticCommits", ":timezone(Asia/Seoul)"],
   "schedule": ["before 9am on monday"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
@@ -17,12 +13,7 @@
   "packageRules": [
     {
       "groupName": "napi-rs",
-      "matchPackageNames": [
-        "napi",
-        "napi-derive",
-        "napi-build",
-        "@napi-rs/cli"
-      ]
+      "matchPackageNames": ["napi", "napi-derive", "napi-build", "@napi-rs/cli"]
     },
     {
       "groupName": "objc2 family",
