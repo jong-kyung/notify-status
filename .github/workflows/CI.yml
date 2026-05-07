@@ -3,13 +3,14 @@ name: CI
 on:
   push:
     branches: [main, develop]
-    tags-ignore: ['**']
+    tags: ['v*']
   pull_request:
 
 env:
   DEBUG: napi:*
   APP_NAME: notify-status
   MACOSX_DEPLOYMENT_TARGET: '10.14'
+  NAPI_BUILD_FLAGS: '--platform --release --no-const-enum --js binding.cjs --dts binding.d.cts'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,16 +50,12 @@ jobs:
         include:
           - host: macos-latest
             target: aarch64-apple-darwin
-            build: vp exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target aarch64-apple-darwin
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: vp exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target x86_64-apple-darwin
           - host: windows-latest
             target: x86_64-pc-windows-msvc
-            build: vp exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target x86_64-pc-windows-msvc
           - host: windows-latest
             target: aarch64-pc-windows-msvc
-            build: vp exec napi build --platform --release --no-const-enum --js binding.cjs --dts binding.d.cts --target aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
       - uses: voidzero-dev/setup-vp@v1
@@ -78,7 +75,7 @@ jobs:
           key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: vp install --frozen-lockfile
       - name: build native
-        run: ${{ matrix.build }}
+        run: vp exec napi build ${{ env.NAPI_BUILD_FLAGS }} --target ${{ matrix.target }}
         shell: bash
       - name: build ts (vp pack)
         run: vp pack
@@ -171,7 +168,7 @@ jobs:
       - name: smoke load (CJS)
         shell: pwsh
         run: |
-          node -e "const m = require('./dist/index.cjs'); m.getNotificationStatus().then(r => { console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1); });"
+          node -e "const m = require('./dist/index.cjs'); m.getNotificationStatus().then(r => { console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1); }).catch(err => { console.error(err); process.exit(1); });"
 
   cargo-test:
     name: cargo test (Rust unit tests)
@@ -183,6 +180,9 @@ jobs:
       - run: cargo test --lib
 
   publish:
+    # Tag-triggered release. Push a tag matching v*.*.* (e.g. `git tag v1.2.3
+    # && git push origin v1.2.3`) to publish. Branch pushes never reach this
+    # job, so accidental publishes from main commits are impossible.
     name: publish
     runs-on: ubuntu-latest
     needs:
@@ -191,7 +191,7 @@ jobs:
       - test-windows-x64
       - arm64-smoke
       - cargo-test
-    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
       - uses: voidzero-dev/setup-vp@v1
@@ -215,11 +215,7 @@ jobs:
       - name: publish
         run: |
           npm config set provenance true
-          if git log -1 --pretty=%B | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+'; then
-            npm publish --access public
-          else
-            echo "Not a release commit; skipping npm publish."
-          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

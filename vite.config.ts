@@ -1,5 +1,14 @@
 import { defineConfig } from 'vite-plus';
 
+const IGNORE_PATTERNS_BASE = [
+  'dist/**',
+  'target/**',
+  'node_modules/**',
+  'binding.cjs',
+  'binding.d.cts',
+  'notify-status.*.node',
+];
+
 export default defineConfig({
   test: {
     environment: 'node',
@@ -17,17 +26,7 @@ export default defineConfig({
     },
   },
   lint: {
-    ignorePatterns: [
-      'dist/**',
-      'target/**',
-      'node_modules/**',
-      'binding.cjs',
-      'binding.d.cts',
-      'notify-status.*.node',
-      // tsd files import from ../dist/index.mjs which only exists after `vp pack`.
-      // tsd has its own type-check pass via `vp run test:types`.
-      '__test__/**/*.test-d.ts',
-    ],
+    ignorePatterns: [...IGNORE_PATTERNS_BASE, '**/*.test-d.ts'],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -35,12 +34,7 @@ export default defineConfig({
   },
   fmt: {
     ignorePatterns: [
-      'dist/**',
-      'target/**',
-      'node_modules/**',
-      'binding.cjs',
-      'binding.d.cts',
-      'notify-status.*.node',
+      ...IGNORE_PATTERNS_BASE,
       'docs/**',
       'CHANGELOG.md',
       'README.md',
