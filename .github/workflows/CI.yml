@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags-ignore: ['**']
   pull_request:
 
@@ -24,17 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - run: pnpm install --frozen-lockfile
-      - name: tsc (typecheck)
-        run: pnpm exec tsc --noEmit
+      - run: vp install --frozen-lockfile
+      - name: vp check (fmt + lint + type-check)
+        run: vp check
       - name: cargo fmt
         run: cargo fmt --all -- --check
       - name: cargo clippy
@@ -50,23 +49,22 @@ jobs:
         include:
           - host: macos-latest
             target: aarch64-apple-darwin
-            build: pnpm run build:native -- --target aarch64-apple-darwin
+            build: vp run build:native -- --target aarch64-apple-darwin
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: pnpm run build:native -- --target x86_64-apple-darwin
+            build: vp run build:native -- --target x86_64-apple-darwin
           - host: windows-latest
             target: x86_64-pc-windows-msvc
-            build: pnpm run build:native -- --target x86_64-pc-windows-msvc
+            build: vp run build:native -- --target x86_64-pc-windows-msvc
           - host: windows-latest
             target: aarch64-pc-windows-msvc
-            build: pnpm run build:native -- --target aarch64-pc-windows-msvc
+            build: vp run build:native -- --target aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -78,12 +76,12 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: pnpm install --frozen-lockfile
+      - run: vp install --frozen-lockfile
       - name: build native
         run: ${{ matrix.build }}
         shell: bash
-      - name: build ts
-        run: pnpm run build:ts
+      - name: build ts (vp pack)
+        run: vp pack
       - uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
@@ -98,16 +96,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: dtolnay/rust-toolchain@stable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build:debug
-      - run: pnpm test
-      - run: pnpm test:types
+      - run: vp install --frozen-lockfile
+      - run: vp run build:debug
+      - run: vp test
+      - run: vp run test:types
 
   test-macos:
     name: test / macos-latest
@@ -115,19 +112,18 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: actions/download-artifact@v4
         with:
           name: bindings-aarch64-apple-darwin
           path: .
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build:ts
-      - run: pnpm test
-      - run: pnpm test:types
+      - run: vp install --frozen-lockfile
+      - run: vp pack
+      - run: vp test
+      - run: vp run test:types
 
   test-windows-x64:
     name: test / windows-latest
@@ -135,19 +131,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: actions/download-artifact@v4
         with:
           name: bindings-x86_64-pc-windows-msvc
           path: .
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build:ts
-      - run: pnpm test
-      - run: pnpm test:types
+      - run: vp install --frozen-lockfile
+      - run: vp pack
+      - run: vp test
+      - run: vp run test:types
 
   arm64-smoke:
     # Cross-compiled aarch64-pc-windows-msvc produces a .node binary that's
@@ -159,21 +154,24 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: '24'
+          cache: true
       - uses: actions/download-artifact@v4
         with:
           name: bindings-aarch64-pc-windows-msvc
           path: .
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build:ts
-      - name: smoke load
+      - run: vp install --frozen-lockfile
+      - run: vp pack
+      - name: smoke load (ESM)
         shell: pwsh
         run: |
-          node --input-type=module -e "const m = await import('./dist/index.js'); const r = await m.getNotificationStatus(); console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1);"
+          node --input-type=module -e "const m = await import('./dist/index.mjs'); const r = await m.getNotificationStatus(); console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1);"
+      - name: smoke load (CJS)
+        shell: pwsh
+        run: |
+          node -e "const m = require('./dist/index.cjs'); m.getNotificationStatus().then(r => { console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1); });"
 
   cargo-test:
     name: cargo test (Rust unit tests)
@@ -196,23 +194,24 @@ jobs:
     if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release')
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
-      - run: pnpm install --frozen-lockfile
+      - run: vp install --frozen-lockfile
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: move artifacts
-        run: pnpm run artifacts
+        run: vp run artifacts
       - run: ls -R ./npm
-      - name: build ts
-        run: pnpm run build:ts
+      - name: build ts (vp pack)
+        run: vp pack
       - name: prepublish
-        run: pnpm run prepublishOnly
+        run: vp run prepublishOnly
       - name: publish
         run: |
           npm config set provenance true
