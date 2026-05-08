@@ -4,6 +4,11 @@ const path = require('node:path');
 
 app.disableHardwareAcceleration();
 
+const aumid = process.env.NOTIFY_STATUS_AUMID;
+if (aumid && typeof app.setAppUserModelId === 'function') {
+  app.setAppUserModelId(aumid);
+}
+
 app
   .whenReady()
   .then(async () => {
