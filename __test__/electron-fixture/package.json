@@ -1,0 +1,6 @@
+{
+  "name": "electron-fixture",
+  "private": true,
+  "type": "commonjs",
+  "main": "main.js"
+}
