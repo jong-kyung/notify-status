@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi        = { version = "3.8", default-features = false, features = ["napi3", "async", "error_anyhow"] }
 napi-derive = "3.5"
-anyhow      = "1"
+anyhow      = "1.0.102"
 tokio       = { version = "1", features = ["rt"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
