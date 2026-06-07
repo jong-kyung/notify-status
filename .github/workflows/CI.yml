@@ -179,19 +179,73 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --lib
 
+  detect_version_change:
+    name: detect package version change
+    runs-on: ubuntu-latest
+    outputs:
+      release_needed: ${{ steps.version.outputs.release_needed }}
+      changed: ${{ steps.version.outputs.changed }}
+      published: ${{ steps.version.outputs.published }}
+      version: ${{ steps.version.outputs.version }}
+      previous_version: ${{ steps.version.outputs.previous_version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: compare package versions
+        id: version
+        shell: bash
+        run: |
+          current_version=$(node -p "require('./package.json').version")
+          previous_version=""
+          changed=false
+          published=false
+          release_needed=false
+
+          if npm view "notify-status@$current_version" version >/dev/null 2>&1; then
+            published=true
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            before="${{ github.event.before }}"
+            empty_tree="0000000000000000000000000000000000000000"
+
+            if [ -n "$before" ] && [ "$before" != "$empty_tree" ] && git cat-file -e "$before:package.json" 2>/dev/null; then
+              previous_version=$(git show "$before:package.json" | node -e "let input = ''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => console.log(JSON.parse(input).version));")
+
+              if [ "$previous_version" != "$current_version" ]; then
+                changed=true
+              fi
+            fi
+
+            if [ "$changed" = "true" ] || [ "$published" != "true" ]; then
+              release_needed=true
+            fi
+          fi
+
+          echo "release_needed=$release_needed" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
+
   publish:
-    # Tag-triggered release. Push a tag matching v*.*.* (e.g. `git tag v1.2.3
-    # && git push origin v1.2.3`) to publish. Branch pushes never reach this
-    # job, so accidental publishes from main commits are impossible.
+    # Releases publish automatically when package.json's version changes on a
+    # main push (typically a merged release PR). If a version bump merged before
+    # this automation and is still unpublished, the next main push retries it.
+    # Pushing a v* tag remains a manual fallback.
     name: publish
     runs-on: ubuntu-latest
     needs:
+      - detect_version_change
       - test-linux-source-build
       - test-macos
       - test-windows-x64
       - arm64-smoke
       - cargo-test
-    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect_version_change.outputs.release_needed == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
@@ -202,6 +256,29 @@ jobs:
         with:
           registry-url: 'https://registry.npmjs.org'
       - run: vp install --frozen-lockfile
+      - name: create release tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect_version_change.outputs.release_needed == 'true'
+        shell: bash
+        run: |
+          tag="v${{ needs.detect_version_change.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --no-tags origin "refs/tags/$tag:refs/tags/$tag"
+            tag_commit=$(git rev-parse "$tag^{commit}")
+
+            if [ "$tag_commit" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag $tag already exists at $tag_commit, expected $GITHUB_SHA"
+              exit 1
+            fi
+
+            echo "Tag $tag already exists at this commit; continuing."
+          else
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+          fi
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
@@ -224,6 +301,12 @@ jobs:
       - name: rename release
         # napi prepublish names the release after the commit subject.
         shell: bash
-        run: gh release edit "$GITHUB_REF_NAME" --title "${APP_NAME}@${GITHUB_REF_NAME#v}"
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            tag="v${{ needs.detect_version_change.outputs.version }}"
+          fi
+
+          gh release edit "$tag" --title "${APP_NAME}@${tag#v}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
