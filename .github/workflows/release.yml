@@ -178,6 +178,7 @@ jobs:
   release:
     name: create release PR or publish
     runs-on: ubuntu-latest
+    environment: Release
     needs:
       - test-linux-source-build
       - test-macos
