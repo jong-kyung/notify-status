@@ -10,7 +10,7 @@ repository = "https://github.com/jklee/notify-status"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi        = { version = "3.9.2", default-features = false, features = ["napi3", "async", "error_anyhow"] }
+napi        = { version = "3.9.3", default-features = false, features = ["napi3", "async", "error_anyhow"] }
 napi-derive = "3.5.6"
 anyhow      = "1.0.102"
 tokio       = { version = "1", features = ["rt"] }
