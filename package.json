@@ -84,9 +84,9 @@
     "@types/node": "^24.13.2",
     "electron": "^42.4.1",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
+    "lint-staged": "^17.0.8",
     "tsd": "^0.33.0",
-    "vite-plus": "^0.1.24"
+    "vite-plus": "^0.2.1"
   },
   "lint-staged": {
     "*.{ts,mts,cts,js,mjs,cjs}": "vp check --fix"
