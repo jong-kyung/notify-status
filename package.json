@@ -95,13 +95,14 @@
       "aarch64-pc-windows-msvc"
     ]
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.8.0",
+      "onFail": "download"
+    }
+  },
   "engines": {
     "node": ">=24.16.0"
-  },
-  "packageManager": "pnpm@10.34.4",
-  "pnpm": {
-    "overrides": {
-      "vite": "npm:@voidzero-dev/vite-plus-core@0.2.1"
-    }
   }
 }

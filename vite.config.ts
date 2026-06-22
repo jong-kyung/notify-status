@@ -17,7 +17,7 @@ export default defineConfig({
     testTimeout: 60_000,
   },
   staged: {
-    '*.{ts,mts,cts,js,mjs,cjs}': 'vp check --fix',
+    '*': 'vp check --fix',
   },
   pack: {
     entry: ['src/index.ts'],
