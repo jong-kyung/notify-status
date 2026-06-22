@@ -69,13 +69,12 @@
     "release:publish": "changeset publish",
     "test": "vp test",
     "test:watch": "vp test watch",
-    "test:types": "tsd",
     "check": "vp check",
     "lint": "vp lint",
     "fmt": "vp fmt",
     "universal": "napi universal",
     "version": "napi version",
-    "prepare": "husky"
+    "prepare": "vp config"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
@@ -83,13 +82,9 @@
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^24.13.2",
     "electron": "^42.4.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
-    "tsd": "^0.33.0",
-    "vite-plus": "^0.1.24"
-  },
-  "lint-staged": {
-    "*.{ts,mts,cts,js,mjs,cjs}": "vp check --fix"
+    "typescript": "~6.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   },
   "napi": {
     "binaryName": "notify-status",
@@ -100,11 +95,13 @@
       "aarch64-pc-windows-msvc"
     ]
   },
-  "tsd": {
-    "directory": "__test__"
-  },
   "engines": {
     "node": ">=24.16.0"
   },
-  "packageManager": "pnpm@10.34.4"
+  "packageManager": "pnpm@10.34.4",
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:@voidzero-dev/vite-plus-core@0.2.1"
+    }
+  }
 }
