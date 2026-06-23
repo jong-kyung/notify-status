@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+### Patch Changes
+
+- [#36](https://github.com/jong-kyung/notify-status/pull/36) [`643fc1d`](https://github.com/jong-kyung/notify-status/commit/643fc1de2d6b2c155ece0f08eab628d45e26129f) Thanks [@jong-kyung](https://github.com/jong-kyung)! - Fix the release workflow to use Vite+ commands when creating release PRs.
+
+- [#35](https://github.com/jong-kyung/notify-status/pull/35) [`8aed629`](https://github.com/jong-kyung/notify-status/commit/8aed62979cd03547ef65ab472145d5d3ae0d71c8) Thanks [@jong-kyung](https://github.com/jong-kyung)! - Upgrade the Vite Plus build and test tooling to 0.2.1.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
