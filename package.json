@@ -95,7 +95,7 @@
     "packageManager": {
       "name": "pnpm",
       "version": "11.8.0",
-      "onFail": "download"
+      "onFail": "warn"
     }
   },
   "engines": {
