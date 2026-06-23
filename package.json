@@ -38,7 +38,6 @@
     "binding.d.cts",
     "*.node",
     "README.md",
-    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
@@ -65,16 +64,12 @@
     "build:debug": "vp run build:native:debug && vp run build:ts",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
-    "release:version": "changeset version && vp install --no-frozen-lockfile",
-    "release:publish": "changeset publish",
     "test:watch": "vp test watch",
     "universal": "napi universal",
     "version": "napi version",
     "prepare": "vp config"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^24.13.2",
     "electron": "^42.4.1",
