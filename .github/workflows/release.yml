@@ -220,8 +220,8 @@ jobs:
         with:
           title: 'chore: update versions'
           commit: 'chore: update versions'
-          version: pnpm run release:version
-          publish: pnpm run release:publish
+          version: vp run release:version
+          publish: vp run release:publish
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
