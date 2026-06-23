@@ -8,8 +8,8 @@ on:
 env:
   DEBUG: napi:*
   APP_NAME: notify-status
-  MACOSX_DEPLOYMENT_TARGET: '10.14'
-  NAPI_BUILD_FLAGS: '--platform --release --no-const-enum --js binding.cjs --dts binding.d.cts'
+  MACOSX_DEPLOYMENT_TARGET: "10.14"
+  NAPI_BUILD_FLAGS: "--platform --release --no-const-enum --js binding.cjs --dts binding.d.cts"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: dtolnay/rust-toolchain@stable
       - run: vp install --frozen-lockfile
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: actions/download-artifact@v8
         with:
@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: actions/download-artifact@v8
         with:
@@ -147,7 +147,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: "24"
           cache: true
       - uses: actions/download-artifact@v8
         with:
