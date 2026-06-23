@@ -1,29 +1,29 @@
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import path from 'node:path';
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
 
-import { describe, expect, test } from 'vite-plus/test';
+import { describe, expect, test } from "vite-plus/test";
 
 const require = createRequire(import.meta.url);
 
-const FIXTURE_DIR = path.resolve(__dirname, 'electron-fixture');
-const DIST_ENTRY = path.resolve(__dirname, '..', 'dist', 'index.cjs');
-const SENTINEL_BEGIN = '===NOTIFY_STATUS_BEGIN===';
-const SENTINEL_END = '===NOTIFY_STATUS_END===';
-const ALLOWED_AUTH = ['granted', 'denied', 'notDetermined', 'unsupported'] as const;
+const FIXTURE_DIR = path.resolve(__dirname, "electron-fixture");
+const DIST_ENTRY = path.resolve(__dirname, "..", "dist", "index.cjs");
+const SENTINEL_BEGIN = "===NOTIFY_STATUS_BEGIN===";
+const SENTINEL_END = "===NOTIFY_STATUS_END===";
+const ALLOWED_AUTH = ["granted", "denied", "notDetermined", "unsupported"] as const;
 
 function resolveElectronBinary(): string | null {
   try {
     // electron's main export is the binary path string when loaded from Node.
-    return require('electron') as unknown as string;
+    return require("electron") as unknown as string;
   } catch {
     return null;
   }
 }
 
-const isMacOS = process.platform === 'darwin';
-const isWindows = process.platform === 'win32';
+const isMacOS = process.platform === "darwin";
+const isWindows = process.platform === "win32";
 const electronBinary = resolveElectronBinary();
 const distBuilt = existsSync(DIST_ENTRY);
 const guardsPass = electronBinary != null && distBuilt;
@@ -31,50 +31,50 @@ const guardsPass = electronBinary != null && distBuilt;
 const macTest = isMacOS && guardsPass ? test : test.skip;
 const winTest = isWindows && guardsPass ? test : test.skip;
 
-describe('macOS — Electron host (dev mode)', () => {
+describe("macOS — Electron host (dev mode)", () => {
   emitSkipReasons(isMacOS);
 
   macTest(
-    'spawned Electron returns a valid notification status payload',
+    "spawned Electron returns a valid notification status payload",
     async () => {
-      const status = await runAndParse('mac', {});
-      expect(status.platform).toBe('darwin');
+      const status = await runAndParse("mac", {});
+      expect(status.platform).toBe("darwin");
       assertCommonShape(status);
       expect(
         status.reason,
         `Electron host should not produce noBundleId — the host bundle is com.github.Electron. Got: ${JSON.stringify(status)}`,
-      ).not.toBe('noBundleId');
+      ).not.toBe("noBundleId");
       expect(
         status.reason,
         `Unexpected internalError from Electron host. Captured: ${JSON.stringify(status)}`,
-      ).not.toBe('internalError');
+      ).not.toBe("internalError");
     },
     30_000,
   );
 });
 
-describe('Windows — Electron host (dev mode)', () => {
+describe("Windows — Electron host (dev mode)", () => {
   emitSkipReasons(isWindows);
 
   // No reason-code assertion — Windows Electron dev-mode behavior is captured
   // for the first time by this run; tighten in a follow-up after observation.
   winTest(
-    'spawned Electron without AUMID returns a valid notification status payload',
+    "spawned Electron without AUMID returns a valid notification status payload",
     async () => {
-      const status = await runAndParse('win-no-aumid', {});
-      expect(status.platform).toBe('win32');
+      const status = await runAndParse("win-no-aumid", {});
+      expect(status.platform).toBe("win32");
       assertCommonShape(status);
     },
     30_000,
   );
 
   winTest(
-    'spawned Electron with AUMID set returns a valid notification status payload',
+    "spawned Electron with AUMID set returns a valid notification status payload",
     async () => {
-      const status = await runAndParse('win-aumid', {
-        NOTIFY_STATUS_AUMID: 'dev.notify-status.electron.fixture',
+      const status = await runAndParse("win-aumid", {
+        NOTIFY_STATUS_AUMID: "dev.notify-status.electron.fixture",
       });
-      expect(status.platform).toBe('win32');
+      expect(status.platform).toBe("win32");
       assertCommonShape(status);
     },
     30_000,
@@ -82,8 +82,8 @@ describe('Windows — Electron host (dev mode)', () => {
 });
 
 function assertCommonShape(status: Record<string, unknown>): void {
-  expect(typeof status.authorization).toBe('string');
-  expect(typeof status.doNotDisturb).toBe('boolean');
+  expect(typeof status.authorization).toBe("string");
+  expect(typeof status.doNotDisturb).toBe("boolean");
   expect(ALLOWED_AUTH).toContain(status.authorization);
 }
 
@@ -119,7 +119,7 @@ async function runAndParse(
     );
   }
 
-  expect(typeof parsed).toBe('object');
+  expect(typeof parsed).toBe("object");
   expect(parsed).not.toBeNull();
   const status = parsed as Record<string, unknown>;
 
@@ -140,29 +140,29 @@ function runFixture(
 ): Promise<FixtureResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(electronPath, [FIXTURE_DIR], {
-      cwd: path.resolve(__dirname, '..'),
-      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: path.resolve(__dirname, ".."),
+      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...extraEnv },
     });
 
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8');
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
     });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8');
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
     });
 
-    child.on('error', (err) => reject(err));
-    child.on('close', (exitCode) => resolve({ stdout, stderr, exitCode }));
+    child.on("error", (err) => reject(err));
+    child.on("close", (exitCode) => resolve({ stdout, stderr, exitCode }));
   });
 }
 
 function emitSkipReasons(isTargetPlatform: boolean): void {
   if (!isTargetPlatform) return;
   if (electronBinary == null) {
-    test.skip('electron not installed — install devDependency to enable', () => {});
+    test.skip("electron not installed — install devDependency to enable", () => {});
   }
   if (!distBuilt) {
     test.skip(`dist/index.cjs missing — run \`pnpm run build:ts\` first (expected at ${DIST_ENTRY})`, () => {});
