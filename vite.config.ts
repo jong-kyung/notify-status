@@ -39,7 +39,6 @@ export default defineConfig({
     ignorePatterns: [
       ...IGNORE_PATTERNS_BASE,
       "docs/**",
-      "CHANGELOG.md",
       "README.md",
       "Cargo.toml",
       "Cargo.lock",
