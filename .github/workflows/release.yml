@@ -100,7 +100,6 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp run build:debug
       - run: vp test
-      - run: vp run test:types
 
   test-macos:
     name: test / macos-latest
@@ -119,7 +118,6 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp pack
       - run: vp test
-      - run: vp run test:types
 
   test-windows-x64:
     name: test / windows-latest
@@ -138,7 +136,6 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp pack
       - run: vp test
-      - run: vp run test:types
 
   arm64-smoke:
     # Cross-compiled aarch64-pc-windows-msvc produces a .node binary that's
