@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+### Patch Changes
+
+- [#41](https://github.com/jong-kyung/notify-status/pull/41) [`535834b`](https://github.com/jong-kyung/notify-status/commit/535834bd9e663bb6c8c681320f6499f352a2fa9c) Thanks [@jong-kyung](https://github.com/jong-kyung)! - Allow npm publish commands to run while keeping pnpm as the project package manager.
+
 ## 1.0.2
 
 ### Patch Changes
