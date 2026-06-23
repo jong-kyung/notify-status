@@ -37,34 +37,34 @@ structured `unsupported` payload — your code only needs the `.then` branch.
 
 ## API
 
-| Export | Kind | Signature / Shape |
-| --- | --- | --- |
-| `getNotificationStatus` | function | `() => Promise<NotificationStatus>` |
-| `isEffectivelyEnabled` | function | `(status: NotificationStatus \| null \| undefined) => boolean` |
-| `NotificationStatus` | type | `{ authorization: Authorization; doNotDisturb: boolean; platform: string; reason?: Reason }` |
-| `Authorization` | type | `'granted' \| 'denied' \| 'notDetermined' \| 'unsupported'` |
-| `Reason` | type | `'noBundleId' \| 'noAumid' \| 'unsupportedPlatform' \| 'internalError'` |
+| Export                  | Kind     | Signature / Shape                                                                            |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `getNotificationStatus` | function | `() => Promise<NotificationStatus>`                                                          |
+| `isEffectivelyEnabled`  | function | `(status: NotificationStatus \| null \| undefined) => boolean`                               |
+| `NotificationStatus`    | type     | `{ authorization: Authorization; doNotDisturb: boolean; platform: string; reason?: Reason }` |
+| `Authorization`         | type     | `'granted' \| 'denied' \| 'notDetermined' \| 'unsupported'`                                  |
+| `Reason`                | type     | `'noBundleId' \| 'noAumid' \| 'unsupportedPlatform' \| 'internalError'`                      |
 
 ## Platform support
 
-| Platform | Authorization | Do Not Disturb | Notes |
-| --- | --- | --- | --- |
-| macOS 12 – 15 (`darwin-arm64`, `darwin-x64`) | full (`UNUserNotificationCenter`) | Focus state via `~/Library/DoNotDisturb/DB/Assertions.json` | best-effort DND |
-| macOS 26 (Tahoe) | full | **stub: always `false`** | the Assertions.json format moved/changed; v1.x will add a Tahoe path |
-| Windows 10 1607+ / 11 (`win32-x64`, `win32-arm64`) | full (`ToastNotificationManager.Setting`) | Focus Assist / Quiet Hours via `ntdll!NtQueryWnfStateData` | undocumented WNF path; opt-out via `NOTIFY_STATUS_DISABLE_WNF=1` |
-| Linux & everything else | always `unsupported` (`unsupportedPlatform`) | always `false` | no per-app permission concept on D-Bus; honest `unsupported` instead of fake "granted" |
+| Platform                                           | Authorization                                | Do Not Disturb                                              | Notes                                                                                  |
+| -------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| macOS 12 – 15 (`darwin-arm64`, `darwin-x64`)       | full (`UNUserNotificationCenter`)            | Focus state via `~/Library/DoNotDisturb/DB/Assertions.json` | best-effort DND                                                                        |
+| macOS 26 (Tahoe)                                   | full                                         | **stub: always `false`**                                    | the Assertions.json format moved/changed; v1.x will add a Tahoe path                   |
+| Windows 10 1607+ / 11 (`win32-x64`, `win32-arm64`) | full (`ToastNotificationManager.Setting`)    | Focus Assist / Quiet Hours via `ntdll!NtQueryWnfStateData`  | undocumented WNF path; opt-out via `NOTIFY_STATUS_DISABLE_WNF=1`                       |
+| Linux & everything else                            | always `unsupported` (`unsupportedPlatform`) | always `false`                                              | no per-app permission concept on D-Bus; honest `unsupported` instead of fake "granted" |
 
 ## What `unsupported` means
 
 The library reports `authorization: 'unsupported'` when it could not determine
 the host's notification permission state. The `reason` field discriminates:
 
-| `reason` | Meaning | What the consumer should do |
-| --- | --- | --- |
-| `'noBundleId'` | macOS only. The host process has no `Bundle.bundleIdentifier` (naked `node`, unbundled scripts, some Electron dev environments). | Ensure the app is launched via a bundled `.app` with `CFBundleIdentifier` set in `Info.plist`. |
-| `'noAumid'` | Windows only. The process has no Application User Model ID. | Call `app.setAppUserModelId('com.example.YourApp')` early in your Electron main process, or install via a packaged installer (Squirrel, MSIX) that registers an AUMID. |
-| `'unsupportedPlatform'` | Linux / BSD / unknown. | No remediation; treat notifications as best-effort and fall back to in-app indicators. |
-| `'internalError'` | A library/runtime failure occurred (unmapped HRESULT, panic, JoinError, parse failure, caught NSException not from a missing bundle). | This is the signal you want in your telemetry to spot regressions — distinct from environmental issues above. |
+| `reason`                | Meaning                                                                                                                               | What the consumer should do                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'noBundleId'`          | macOS only. The host process has no `Bundle.bundleIdentifier` (naked `node`, unbundled scripts, some Electron dev environments).      | Ensure the app is launched via a bundled `.app` with `CFBundleIdentifier` set in `Info.plist`.                                                                         |
+| `'noAumid'`             | Windows only. The process has no Application User Model ID.                                                                           | Call `app.setAppUserModelId('com.example.YourApp')` early in your Electron main process, or install via a packaged installer (Squirrel, MSIX) that registers an AUMID. |
+| `'unsupportedPlatform'` | Linux / BSD / unknown.                                                                                                                | No remediation; treat notifications as best-effort and fall back to in-app indicators.                                                                                 |
+| `'internalError'`       | A library/runtime failure occurred (unmapped HRESULT, panic, JoinError, parse failure, caught NSException not from a missing bundle). | This is the signal you want in your telemetry to spot regressions — distinct from environmental issues above.                                                          |
 
 ## Recommended integration pattern
 
@@ -179,7 +179,6 @@ vp run build         # release (napi build + vp pack)
 vp run build:debug   # debug
 vp check             # fmt + lint + type-check
 vp test              # vitest
-vp run test:types    # tsd type contract
 ```
 
 Plain `pnpm` works too if `vp` is not installed — every script delegates

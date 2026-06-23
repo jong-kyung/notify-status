@@ -16,6 +16,9 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**', '**/target/**', '**/*.test-d.ts'],
     testTimeout: 60_000,
   },
+  staged: {
+    '*': 'vp check --fix',
+  },
   pack: {
     entry: ['src/index.ts'],
     dts: true,
