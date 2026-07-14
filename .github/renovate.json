@@ -36,6 +36,11 @@
       "matchUpdateTypes": ["patch", "minor"]
     },
     {
+      "groupName": "vite-plus",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vite-plus", "/^@voidzero-dev\\/vite-plus-/"]
+    },
+    {
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["major"],
       "addLabels": ["cargo-major"]
