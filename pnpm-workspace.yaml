@@ -1,6 +1,6 @@
 catalog:
-  vite-plus: 0.2.4
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.4
+  vite-plus: 0.2.5
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.5
 minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-core@0.2.4"
   - "@voidzero-dev/vite-plus-darwin-arm64@0.2.4"
@@ -12,6 +12,16 @@ minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.4"
   - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.4"
   - vite-plus@0.2.4
+  - "@voidzero-dev/vite-plus-core@0.2.5"
+  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.5"
+  - "@voidzero-dev/vite-plus-darwin-x64@0.2.5"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.5"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.5"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.5"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.5"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.5"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.5"
+  - vite-plus@0.2.5
 overrides:
   vite: "catalog:"
 peerDependencyRules:
