@@ -1,8 +1,8 @@
 //! Windows authorization read via ToastNotificationManager.
 //!
-//! `CreateToastNotifier` / `Setting()` report a missing or invalid AUMID in
-//! their HRESULT. We map those failures directly instead of duplicating the
-//! check with lower-level Win32 calls.
+//! Unpackaged desktop apps need their explicit AUMID passed to
+//! `CreateToastNotifierWithId`; packaged apps can use `CreateToastNotifier`.
+//! Both paths map missing or invalid identity HRESULTs to `noAumid`.
 
 use crate::status::Authorization;
 
@@ -47,11 +47,32 @@ pub fn classify_hresult(hresult_raw: i32) -> AuthError {
 }
 
 #[cfg(target_os = "windows")]
+fn explicit_aumid() -> Option<windows::core::HSTRING> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
+
+    // SAFETY: The API returns a valid null-terminated, caller-owned PWSTR on
+    // success. Copy it before releasing the buffer with CoTaskMemFree.
+    unsafe {
+        let ptr = GetCurrentProcessExplicitAppUserModelID().ok()?;
+        if ptr.is_null() {
+            return None;
+        }
+        let aumid = ptr.to_hstring();
+        CoTaskMemFree(Some(ptr.0.cast()));
+        Some(aumid)
+    }
+}
+
+#[cfg(target_os = "windows")]
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    let notifier = ToastNotificationManager::CreateToastNotifier()
-        .map_err(|err| classify_hresult(err.code().0))?;
+    let notifier = match explicit_aumid() {
+        Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(&aumid),
+        None => ToastNotificationManager::CreateToastNotifier(),
+    }
+    .map_err(|err| classify_hresult(err.code().0))?;
 
     let setting = notifier
         .Setting()
