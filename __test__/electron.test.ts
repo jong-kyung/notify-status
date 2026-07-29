@@ -34,6 +34,9 @@ const guardsPass = electronBinary != null && distBuilt;
 
 const macTest = isMacOS && guardsPass ? test : test.skip;
 const winTest = isWindows && guardsPass ? test : test.skip;
+const registeredAumidEnabled =
+  isWindows && guardsPass && process.env.NOTIFY_STATUS_TEST_REGISTERED_AUMID === "1";
+const registeredAumidTest = registeredAumidEnabled ? test : test.skip;
 
 describe("macOS — Electron host (dev mode)", () => {
   emitSkipReasons(isMacOS);
@@ -88,14 +91,14 @@ describe("Windows — Electron host (dev mode)", () => {
 
 describe("Windows — registered Electron host", () => {
   beforeAll(() => {
-    if (isWindows && guardsPass) configureAumidShortcut("Install");
+    if (registeredAumidEnabled) configureAumidShortcut("Install");
   });
 
   afterAll(() => {
-    if (isWindows && guardsPass) configureAumidShortcut("Remove");
+    if (registeredAumidEnabled) configureAumidShortcut("Remove");
   });
 
-  winTest(
+  registeredAumidTest(
     "registered AUMID returns the Windows notification setting",
     async () => {
       const status = await runAndParse("win-registered-aumid", {

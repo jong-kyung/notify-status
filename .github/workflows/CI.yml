@@ -155,6 +155,10 @@ jobs:
           path: .
       - run: vp install --frozen-lockfile
       - run: vp pack
+      - name: test registered Windows AUMID
+        run: vp test
+        env:
+          NOTIFY_STATUS_TEST_REGISTERED_AUMID: "1"
       - name: smoke load (ESM)
         shell: pwsh
         run: |
