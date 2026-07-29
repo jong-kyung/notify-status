@@ -1,14 +1,18 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-import { describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 const require = createRequire(import.meta.url);
 
 const FIXTURE_DIR = path.resolve(__dirname, "electron-fixture");
+const AUMID_FIXTURE_SCRIPT = path.resolve(__dirname, "windows-aumid-fixture.ps1");
 const DIST_ENTRY = path.resolve(__dirname, "..", "dist", "index.cjs");
+const REGISTERED_AUMID = "dev.notify-status.electron.registered";
+const UNREGISTERED_AUMID = "dev.notify-status.electron.unregistered";
+const WINDOWS_SHORTCUT_NAME = `notify-status-test-${process.pid}`;
 const SENTINEL_BEGIN = "===NOTIFY_STATUS_BEGIN===";
 const SENTINEL_END = "===NOTIFY_STATUS_END===";
 const ALLOWED_AUTH = ["granted", "denied", "notDetermined", "unsupported"] as const;
@@ -68,19 +72,71 @@ describe("Windows — Electron host (dev mode)", () => {
   );
 
   winTest(
-    "spawned Electron with AUMID set returns a valid notification status payload",
+    "spawned Electron with an unregistered AUMID returns noAumid",
     async () => {
-      const status = await runAndParse("win-aumid", {
-        NOTIFY_STATUS_AUMID: "dev.notify-status.electron.fixture",
+      const status = await runAndParse("win-unregistered-aumid", {
+        NOTIFY_STATUS_AUMID: UNREGISTERED_AUMID,
       });
       expect(status.platform).toBe("win32");
       assertCommonShape(status);
-      expect(status.authorization).not.toBe("unsupported");
+      expect(status.authorization).toBe("unsupported");
+      expect(status.reason).toBe("noAumid");
+    },
+    30_000,
+  );
+});
+
+describe("Windows — registered Electron host", () => {
+  beforeAll(() => {
+    if (isWindows && guardsPass) configureAumidShortcut("Install");
+  });
+
+  afterAll(() => {
+    if (isWindows && guardsPass) configureAumidShortcut("Remove");
+  });
+
+  winTest(
+    "registered AUMID returns the Windows notification setting",
+    async () => {
+      const status = await runAndParse("win-registered-aumid", {
+        NOTIFY_STATUS_AUMID: REGISTERED_AUMID,
+      });
+      expect(status.platform).toBe("win32");
+      assertCommonShape(status);
+      expect(["granted", "denied"]).toContain(status.authorization);
       expect(status.reason).toBeUndefined();
     },
     30_000,
   );
 });
+
+function configureAumidShortcut(action: "Install" | "Remove"): void {
+  const args = [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    AUMID_FIXTURE_SCRIPT,
+    "-Action",
+    action,
+    "-ShortcutName",
+    WINDOWS_SHORTCUT_NAME,
+  ];
+
+  if (action === "Install") {
+    args.push(
+      "-TargetPath",
+      electronBinary as string,
+      "-Arguments",
+      `"${FIXTURE_DIR}"`,
+      "-AppId",
+      REGISTERED_AUMID,
+    );
+  }
+
+  execFileSync("powershell.exe", args, { stdio: "pipe" });
+}
 
 function assertCommonShape(status: Record<string, unknown>): void {
   expect(typeof status.authorization).toBe("string");
