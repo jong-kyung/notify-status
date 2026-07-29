@@ -1,12 +1,9 @@
 //! Windows branch entry point.
 //!
 //! Sequence:
-//! 1. `RoInitialize(MULTITHREADED)` — required before any WinRT call. Tolerate
-//!    `RPC_E_CHANGED_MODE` (host already initialised STA).
-//! 2. AUMID pre-flight (explicit OR package). If neither is set → `noAumid`.
-//! 3. `CreateToastNotifier().Setting()` — map HRESULT failures to `noAumid`
-//!    (race-window) or `internalError` (anything else).
-//! 4. `quiet_hours::read_dnd()` — best-effort, never fails. Filled by U7.
+//! 1. `CreateToastNotifier().Setting()` — map AUMID-related HRESULT failures to
+//!    `noAumid` and all others to `internalError`.
+//! 2. `quiet_hours::read_dnd()` — best-effort, never fails.
 //!
 //! All steps wrapped in `panic::catch_unwind` so a Rust panic in any FFI path
 //! collapses to `internalError` rather than aborting.
@@ -30,24 +27,10 @@ pub fn query() -> NotificationStatus {
 
 #[cfg(target_os = "windows")]
 fn query_inner() -> NotificationStatus {
-    use windows::Win32::System::WinRT::{RO_INIT_MULTITHREADED, RoInitialize};
-
-    // RoInitialize: idempotent within a thread. RPC_E_CHANGED_MODE means the
-    // calling thread is already STA — tolerate and proceed (ToastNotifier
-    // works from STA in practice for Electron callers).
-    // SAFETY: WinRT initialisation entrypoint.
-    let _ = unsafe { RoInitialize(RO_INIT_MULTITHREADED) };
-
-    if !authorization::has_aumid() {
-        return NotificationStatus::unsupported("win32", Reason::NoAumid);
-    }
-
-    let dnd = quiet_hours::read_dnd();
-
     match authorization::read_authorization() {
         Ok(auth) => NotificationStatus {
             authorization: auth,
-            do_not_disturb: dnd,
+            do_not_disturb: quiet_hours::read_dnd(),
             platform: "win32".to_string(),
             reason: None,
         },

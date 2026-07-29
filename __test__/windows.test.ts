@@ -9,8 +9,8 @@ const winTest = isWindows ? test : test.skip;
 // the noAumid unsupported payload and never throws.
 //
 // The test runner / CI executes naked node, which never sets an explicit AUMID
-// and is not a packaged app, so both pre-flights fail — exactly the scenario
-// AE7 specifies.
+// and is not a packaged app, so the WinRT call must classify the missing identity
+// as `noAumid` — exactly the scenario AE7 specifies.
 describe("Windows — AE7 (no AUMID)", () => {
   winTest("missing AUMID returns unsupported(noAumid) without crashing", async () => {
     const status = await getNotificationStatus();

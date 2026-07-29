@@ -56,14 +56,13 @@ describe("macOS — Electron host (dev mode)", () => {
 describe("Windows — Electron host (dev mode)", () => {
   emitSkipReasons(isWindows);
 
-  // No reason-code assertion — Windows Electron dev-mode behavior is captured
-  // for the first time by this run; tighten in a follow-up after observation.
   winTest(
     "spawned Electron without AUMID returns a valid notification status payload",
     async () => {
       const status = await runAndParse("win-no-aumid", {});
       expect(status.platform).toBe("win32");
       assertCommonShape(status);
+      expect(status.reason).not.toBe("internalError");
     },
     30_000,
   );
@@ -76,6 +75,8 @@ describe("Windows — Electron host (dev mode)", () => {
       });
       expect(status.platform).toBe("win32");
       assertCommonShape(status);
+      expect(status.authorization).not.toBe("unsupported");
+      expect(status.reason).toBeUndefined();
     },
     30_000,
   );

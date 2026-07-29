@@ -26,10 +26,11 @@ pub fn dword_means_dnd_active(dword: u32) -> bool {
 }
 
 pub fn read_dnd() -> bool {
-    if std::env::var_os("NOTIFY_STATUS_DISABLE_WNF").is_some() {
-        return false;
-    }
-    read_dnd_via_wnf()
+    read_dnd_unless_disabled(std::env::var_os("NOTIFY_STATUS_DISABLE_WNF").is_some())
+}
+
+fn read_dnd_unless_disabled(disabled: bool) -> bool {
+    !disabled && read_dnd_via_wnf()
 }
 
 #[cfg(target_os = "windows")]
@@ -119,19 +120,9 @@ mod tests {
 
     #[test]
     fn env_kill_switch_short_circuits_to_false() {
-        // Single-threaded test mutates env; restore after.
-        let saved = std::env::var_os("NOTIFY_STATUS_DISABLE_WNF");
-        // SAFETY: single-threaded test.
-        unsafe { std::env::set_var("NOTIFY_STATUS_DISABLE_WNF", "1") };
-
-        assert!(!read_dnd(), "kill-switch must short-circuit to false");
-
-        // SAFETY: restore.
-        unsafe {
-            match saved {
-                Some(v) => std::env::set_var("NOTIFY_STATUS_DISABLE_WNF", v),
-                None => std::env::remove_var("NOTIFY_STATUS_DISABLE_WNF"),
-            }
-        }
+        assert!(
+            !read_dnd_unless_disabled(true),
+            "kill-switch must short-circuit to false"
+        );
     }
 }

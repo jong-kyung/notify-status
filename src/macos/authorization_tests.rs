@@ -6,19 +6,14 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use objc2::rc::Retained;
-use objc2_foundation::NSObject;
+use objc2_foundation::{NSException, ns_string};
 
 #[test]
 fn exception_catch_returns_err_when_an_objc_exception_is_thrown() {
     let result = objc2::exception::catch(|| {
-        // Build a tiny throwable. Per objc2's own test suite, casting NSObject
-        // to objc2::exception::Exception via cast_unchecked is the canonical
-        // way to construct a throwable for tests.
-        let obj = NSObject::new();
-        let throwable: Retained<objc2::exception::Exception> =
-            unsafe { Retained::cast_unchecked(obj) };
-        objc2::exception::throw(throwable);
+        let exception = NSException::new(ns_string!("notify-status test"), None, None)
+            .expect("NSException should be constructible in the test process");
+        objc2::exception::throw(NSException::into_exception(exception));
     });
 
     assert!(result.is_err(), "expected exception::catch to return Err");

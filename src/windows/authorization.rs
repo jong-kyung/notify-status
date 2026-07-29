@@ -1,16 +1,8 @@
 //! Windows authorization read via ToastNotificationManager.
 //!
-//! Two pre-flights cover the AUMID surface:
-//! 1. Explicit AUMID (set via `SetCurrentProcessExplicitAppUserModelID`) — what
-//!    Electron / packaged Squirrel installers use. Read via
-//!    `GetCurrentProcessExplicitAppUserModelID` (shell32).
-//! 2. Package AUMID — what MSIX/UWP apps have. Read via
-//!    `GetCurrentApplicationUserModelId` (kernel32).
-//!
-//! If neither pre-flight resolves an AUMID, we return `noAumid` without calling
-//! into WinRT. If at least one resolves, we proceed to `CreateToastNotifier` /
-//! `Setting()` and map any HRESULT failure based on its code (race-window
-//! ERROR_NOT_FOUND / E_INVALIDARG → `noAumid`; anything else → `internalError`).
+//! `CreateToastNotifier` / `Setting()` report a missing or invalid AUMID in
+//! their HRESULT. We map those failures directly instead of duplicating the
+//! check with lower-level Win32 calls.
 
 use crate::status::Authorization;
 
@@ -52,43 +44,6 @@ pub fn classify_hresult(hresult_raw: i32) -> AuthError {
     } else {
         AuthError::Internal
     }
-}
-
-#[cfg(target_os = "windows")]
-pub fn has_aumid() -> bool {
-    explicit_aumid_set() || package_aumid_set()
-}
-
-#[cfg(target_os = "windows")]
-fn explicit_aumid_set() -> bool {
-    use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
-
-    // SAFETY: shell32 export, returns Ok(PWSTR) iff explicit AUMID has been set
-    // via SetCurrentProcessExplicitAppUserModelID at any point in this process.
-    let result = unsafe { GetCurrentProcessExplicitAppUserModelID() };
-    if let Ok(ptr) = result {
-        if !ptr.is_null() {
-            // The caller owns the buffer and must free it with CoTaskMemFree.
-            unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0 as _)) };
-            return true;
-        }
-    }
-    false
-}
-
-#[cfg(target_os = "windows")]
-fn package_aumid_set() -> bool {
-    use windows::Win32::Storage::Packaging::Appx::GetCurrentApplicationUserModelId;
-
-    let mut len: u32 = 0;
-    // First call learns the buffer size; we don't actually need the bytes.
-    // SAFETY: kernel32 export. WIN32_ERROR is returned by value.
-    let rc = unsafe { GetCurrentApplicationUserModelId(&mut len, None) };
-
-    // ERROR_INSUFFICIENT_BUFFER (122) means an AUMID exists; ERROR_SUCCESS is
-    // unexpected for a length-probe call but would also signal "exists".
-    // APPMODEL_ERROR_NO_PACKAGE / NO_APPLICATION are the failure modes.
-    matches!(rc.0, 0 | 122)
 }
 
 #[cfg(target_os = "windows")]
