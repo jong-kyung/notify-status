@@ -1,7 +1,14 @@
+# Stage two: a version bump landing on main releases that version. Start a
+# release with the Prepare Release workflow rather than by editing package.json
+# by hand.
 name: Release
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["package.json"]
+
+permissions: {}
 
 env:
   DEBUG: napi:*
@@ -9,36 +16,90 @@ env:
   MACOSX_DEPLOYMENT_TARGET: "10.14"
   NAPI_BUILD_FLAGS: "--platform --release --no-const-enum --js binding.cjs --dts binding.d.cts"
 
+# Keyed on the commit, not the workflow: GitHub keeps only one pending run per
+# group, so a constant group would let a third release cancel a second one that
+# is still queued behind an approval, and that version would never be built.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-
-permissions:
-  contents: read
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
-  lint:
+  check:
+    name: Check version
+    if: github.repository == 'jong-kyung/notify-status'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changed: ${{ steps.version.outputs.changed }}
     steps:
       - uses: actions/checkout@v6
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - run: vp install --frozen-lockfile
-      - name: vp check (fmt + lint + type-check)
-        run: vp check
-      - name: cargo fmt
-        run: cargo fmt --all -- --check
-      - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
 
+      - name: Is this a new version to release?
+        id: version
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # The trigger is a version bump, not any package.json edit. The
+          # comparison is against what main pointed at before this push, not
+          # HEAD^: a push can carry more than one commit, and then HEAD^ already
+          # holds the new version, which would read as "no change" and silently
+          # skip the only release run for that version.
+          previous=''
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != '0000000000000000000000000000000000000000' ] \
+            && git fetch --no-tags --depth=1 origin "$BEFORE" 2>/dev/null; then
+            previous="$(git show "$BEFORE:package.json" | node -pe 'JSON.parse(require("node:fs").readFileSync(0, "utf8")).version')"
+          fi
+
+          if [ -z "$previous" ]; then
+            # Only reachable if main was force-pushed or freshly created. Fall
+            # through to the registry check rather than blocking a real release.
+            echo "::warning::Could not read the version main held before this push; relying on the registry check alone"
+          elif [ "$version" = "$previous" ]; then
+            echo "package.json changed but the version is still $version; nothing to release."
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # An absent package or version answers with E404, and npm can also
+          # exit 0 with empty output for a version that does not exist; both
+          # mean "not published". Anything else is an outage rather than an
+          # answer -- reading it as "not published" would wave a release
+          # through, so it stops the run instead.
+          if published="$(npm view "notify-status@$version" version 2>"$RUNNER_TEMP/npm-view.err")"; then
+            :
+          elif grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+            published=''
+          else
+            cat "$RUNNER_TEMP/npm-view.err"
+            echo "::error::Could not reach the npm registry to check notify-status@$version"
+            exit 1
+          fi
+
+          if [ -n "$published" ]; then
+            echo "notify-status@$version is already published; stopping."
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo "notify-status@$version is not on npm; releasing it."
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  # Built from the release commit rather than reused from the CI run, so the
+  # provenance of the published binaries does not depend on artifact retention.
+  # Tests are not repeated here -- CI runs them on this same commit, and the
+  # publish job below waits for a human who can see that result.
   build:
     name: build / ${{ matrix.target }}
-    needs: lint
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: ${{ matrix.host }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -72,164 +133,272 @@ jobs:
       - name: build native
         run: vp exec napi build ${{ env.NAPI_BUILD_FLAGS }} --target ${{ matrix.target }}
         shell: bash
-      - name: build ts (vp pack)
-        run: vp pack
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
           path: ${{ env.APP_NAME }}.*.node
           if-no-files-found: error
 
-  test-linux-source-build:
-    # No prebuilt Linux artifact ships, but build-from-source on Linux exercises
-    # the Linux branch (R8 / AE5 — unsupportedPlatform payload, never throws).
-    name: test / linux (source build)
-    needs: lint
+  # Nothing reaches npm until a reviewer approves this job in the release
+  # environment: npm cannot republish a version, unpublish expires after 72
+  # hours, and one publish run pushes all five packages.
+  publish:
+    name: Publish
+    needs: [check, build]
+    if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-      - uses: dtolnay/rust-toolchain@stable
-      - run: vp install --frozen-lockfile
-      - run: vp run build:debug
-      - run: vp test
-
-  test-macos:
-    name: test / macos-latest
-    needs: build
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-      - uses: actions/download-artifact@v8
-        with:
-          name: bindings-aarch64-apple-darwin
-          path: .
-      - run: vp install --frozen-lockfile
-      - run: vp pack
-      - run: vp test
-
-  test-windows-x64:
-    name: test / windows-latest
-    needs: build
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-      - uses: actions/download-artifact@v8
-        with:
-          name: bindings-x86_64-pc-windows-msvc
-          path: .
-      - run: vp install --frozen-lockfile
-      - run: vp pack
-      - run: vp test
-
-  arm64-smoke:
-    # Cross-compiled aarch64-pc-windows-msvc produces a .node binary that's
-    # never executed on ARM64 in the build job. This load-test on a
-    # GitHub-hosted ARM64 Windows runner verifies the binary actually loads
-    # and resolves a Promise before publish.
-    name: smoke / windows-11-arm
-    needs: build
-    runs-on: windows-11-arm
-    steps:
-      - uses: actions/checkout@v6
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-      - uses: actions/download-artifact@v8
-        with:
-          name: bindings-aarch64-pc-windows-msvc
-          path: .
-      - run: vp install --frozen-lockfile
-      - run: vp pack
-      - name: smoke load (ESM)
-        shell: pwsh
-        run: |
-          node --input-type=module -e "const m = await import('./dist/index.mjs'); const r = await m.getNotificationStatus(); console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1);"
-      - name: smoke load (CJS)
-        shell: pwsh
-        run: |
-          node -e "const m = require('./dist/index.cjs'); m.getNotificationStatus().then(r => { console.log(JSON.stringify(r)); if (typeof r.authorization !== 'string') process.exit(1); }).catch(err => { console.error(err); process.exit(1); });"
-
-  cargo-test:
-    name: cargo test (Rust unit tests)
-    needs: lint
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --lib
-
-  release:
-    name: publish to npm
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs:
-      - test-linux-source-build
-      - test-macos
-      - test-windows-x64
-      - arm64-smoke
-      - cargo-test
+    environment: release
+    # Serializes publishing across releases. The workflow-level group is keyed
+    # per commit so no queued release is dropped, which on its own would let two
+    # approved publishes interleave: both read the same dist-tag, both pass the
+    # check below, and whichever finishes last owns the tag. This group is the
+    # shared lock that makes check-then-publish atomic between releases.
+    # Residual: GitHub keeps one pending member per group, so a third publish
+    # queued behind two others would still be dropped -- visible as a missing
+    # release rather than a silent tag move, and re-runnable.
+    concurrency:
+      group: publish-notify-status
+      cancel-in-progress: false
     permissions:
-      contents: write
-      id-token: write
+      contents: write # create the GitHub Release
+      id-token: write # OIDC exchange with npm, and provenance
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      NPM_CONFIG_PROVENANCE: "true"
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v6
       - uses: voidzero-dev/setup-vp@v1
         with:
           node-version: "24"
           cache: true
+
+      # No NODE_AUTH_TOKEN: each of the five packages names this repository,
+      # this workflow file, and the release environment as its trusted
+      # publisher on npmjs.com, and the npm CLI exchanges the OIDC token from
+      # id-token: write for a short-lived credential. There is no long-lived
+      # npm token to leak or rotate.
+      #
+      # setup-node still runs -- it is what points npm at the public registry.
       - uses: actions/setup-node@v6
         with:
           registry-url: "https://registry.npmjs.org"
-      - name: Upgrade npm for trusted publishing
-        run: npm i -g npm@^11.5.2
+
+      # The npm bundled with Node may predate OIDC support (trusted publishing
+      # requires 11.5.1 or newer) and older versions run the prepare lifecycle
+      # on publish even when --ignore-scripts is passed.
+      - name: Use an npm that supports OIDC and honours --ignore-scripts
+        run: npm install --global npm@11.13.0
+
       - run: vp install --frozen-lockfile
-      - uses: actions/download-artifact@v8
+
+      - name: Download native addons
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
+
       - name: create npm dirs
-        # napi artifacts won't mkdir; npm/ is gitignored.
+        # napi artifacts won't mkdir; npm/ is gitignored, and create-npm-dirs
+        # reads the version from package.json, so the platform manifests are
+        # born at the release version.
         run: vp exec napi create-npm-dirs
       - name: move artifacts
         run: vp run artifacts
-      - run: ls -R ./npm
+
+      - name: Verify every target is present
+        run: |
+          set -euo pipefail
+          found="$(find npm -name '*.node' | sort)"
+          count="$(printf '%s\n' "$found" | grep -c '\.node$' || true)"
+          printf '%s\n' "$found"
+          if [ "$count" -ne 4 ]; then
+            echo "::error::Expected 4 native addons, found $count"
+            exit 1
+          fi
+
       - name: build ts (vp pack)
         run: vp pack
-      - name: Check npm version
-        id: npm-version
-        shell: bash
+
+      # Checked here rather than in the check job, and before anything is
+      # published: two releases can clear an earlier check against the same tag
+      # and then be approved out of order, which would walk the tag backward.
+      # This runs after approval, so the comparison is the last word.
+      - name: Verify this version moves its dist-tag forward
         run: |
-          name=$(node -p "require('./package.json').name")
-          version=$(node -p "require('./package.json').version")
-          if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "$name@$version is already published"
+          set -euo pipefail
+          # A prerelease moves next, a stable release moves latest. Derived once
+          # here and reused by the publish and GitHub Release steps.
+          case "$VERSION" in
+            *-*) tag=next ;;
+            *) tag=latest ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_ENV"
+
+          if current="$(npm view "notify-status@$tag" version 2>"$RUNNER_TEMP/npm-view.err")"; then
+            :
+          elif grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+            current=''
           else
-            echo "published=false" >> "$GITHUB_OUTPUT"
+            cat "$RUNNER_TEMP/npm-view.err"
+            echo "::error::Could not reach the npm registry to read the $tag tag"
+            exit 1
           fi
-      - name: Publish to npm
-        if: steps.npm-version.outputs.published == 'false'
-        run: npm publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-      - name: rename release
-        if: steps.npm-version.outputs.published == 'false'
+
+          if [ -z "$current" ]; then
+            echo "No $tag tag yet; $VERSION will create it."
+            exit 0
+          fi
+
+          newest="$(npx --yes -p semver@7.7.2 semver "$VERSION" "$current" | tail -1)"
+          if [ "$VERSION" = "$current" ] || [ "$newest" != "$VERSION" ]; then
+            echo "::error::$VERSION does not come after the current $tag ($current); publishing it would move the $tag tag backward"
+            exit 1
+          fi
+          echo "$VERSION comes after the current $tag ($current)."
+
+      # Prepare only: rewrites the root optionalDependencies to the concrete
+      # platform-package versions. --no-gh-release matters: it defaults to
+      # true, and the GitHub Release is created explicitly at the end of this
+      # job instead. --skip-optional-publish leaves publishing to the
+      # resumable loop below.
+      - name: Prepare platform packages
+        run: vp exec napi prepublish -t npm --no-gh-release --skip-optional-publish
+
+      # Published one at a time rather than by prepublish's own loop, because
+      # npm cannot republish a version: a single call that dies partway through
+      # leaves a rerun with no way to finish the release, since it would stop on
+      # the first package that already succeeded. Skipping versions that are
+      # already up makes a rerun pick up exactly where it left off.
+      #
+      # The tag is passed explicitly: npm refuses to publish a prerelease
+      # without one ("You must specify a tag using --tag when publishing a
+      # prerelease version"), and for a stable release it keeps the platform
+      # packages on the same tag as the root instead of defaulting to latest.
+      - name: Publish platform packages
+        run: |
+          set -euo pipefail
+          for dir in npm/*/; do
+            name="$(node -p "require('./${dir}package.json').name")"
+
+            if published="$(npm view "$name@$VERSION" version 2>"$RUNNER_TEMP/npm-view.err")"; then
+              :
+            elif grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+              published=''
+            else
+              cat "$RUNNER_TEMP/npm-view.err"
+              echo "::error::Could not reach the npm registry to check $name@$VERSION"
+              exit 1
+            fi
+
+            if [ -n "$published" ]; then
+              echo "$name@$VERSION is already published; skipping."
+              continue
+            fi
+
+            echo "Publishing $name@$VERSION under the $tag tag"
+            (cd "$dir" && npm publish --access public --tag "$tag")
+          done
+
+      - name: Publish notify-status
+        run: |
+          set -euo pipefail
+          echo "Publishing notify-status@$VERSION under the $tag tag"
+          # --ignore-scripts because npm runs `prepare` on publish, and this
+          # package's prepare is `vp config` -- a developer-machine hook setup
+          # that has no bearing on the tarball. The packed contents are
+          # byte-identical either way.
+          npm publish --access public --tag "$tag" --ignore-scripts
+
+      # If this fails after a successful publish, rerunning the workflow will
+      # not retry it -- the version is on npm, so the check job stops the run.
+      # Recover by hand:
+      #   gh release create "v<version>" --generate-notes --target <sha>
+      - name: Create GitHub Release
+        run: |
+          set -euo pipefail
+          flags=(--title "v$VERSION" --generate-notes --target "$GITHUB_SHA")
+          # A version published under next is a prerelease on GitHub too,
+          # otherwise an alpha would be advertised as the current release.
+          if [ "$tag" = 'next' ]; then flags+=(--prerelease); fi
+          gh release create "v$VERSION" "${flags[@]}"
+
+  # Installs what users install. CI proves the code, but nothing before this
+  # point exercises the optionalDependencies path that pulls the right platform
+  # package out of the registry. A failure here is a real defect report; it
+  # does not and cannot undo the publish above.
+  smoke:
+    name: Smoke ${{ matrix.runner }}
+    needs: [check, publish]
+    if: needs.check.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - macos-latest
+          - macos-15-intel
+          - windows-latest
+          - windows-11-arm
+          - ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    permissions: {}
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install the published version and load it
         shell: bash
         run: |
-          version=$(node -p "require('./package.json').version")
-          gh release edit "v$version" --title "${APP_NAME}@$version" || echo "::warning::release rename failed"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          set -euo pipefail
+
+          # The whole check retries, not just the root package's visibility:
+          # the platform packages are published separately and a replica can
+          # serve the root before the addon it needs, which shows up as an
+          # install that silently skips the optional dependency.
+          attempt=1
+          until [ "$attempt" -gt 5 ]; do
+            install_dir="$(mktemp -d)"
+            if (
+              set -euo pipefail
+              cd "$install_dir"
+              npm init -y >/dev/null
+              npm install "notify-status@$VERSION"
+
+              cat > check.cjs <<'EOF'
+          const assert = require('node:assert')
+          const m = require('notify-status')
+          m.getNotificationStatus().then((r) => {
+            console.log(JSON.stringify(r))
+            assert.strictEqual(typeof r.authorization, 'string')
+          })
+          EOF
+              cat > check.mjs <<'EOF'
+          import assert from 'node:assert'
+          import { getNotificationStatus } from 'notify-status'
+          const r = await getNotificationStatus()
+          console.log(JSON.stringify(r))
+          assert.strictEqual(typeof r.authorization, 'string')
+          EOF
+
+              if [ "$RUNNER_OS" = 'Linux' ]; then
+                # No prebuilt Linux addon ships. The install must still succeed
+                # (npm skips non-matching optional dependencies), and loading
+                # must fail with the loader's own "native binding" message
+                # rather than something stranger.
+                node -e "try { require('notify-status'); process.exit(1) } catch (err) { console.log(err.message); if (!/native binding/i.test(err.message)) process.exit(1) }"
+              else
+                node check.cjs
+                node check.mjs
+              fi
+            ); then
+              echo "Installed and exercised notify-status@$VERSION on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt failed; the registry may still be propagating"
+            attempt=$((attempt + 1))
+            sleep 20
+          done
+          echo "::error::notify-status@$VERSION did not install and load after 5 attempts"
+          exit 1

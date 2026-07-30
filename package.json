@@ -63,7 +63,6 @@
     "build": "vp run build:native && vp run build:ts",
     "build:debug": "vp run build:native:debug && vp run build:ts",
     "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
     "test:watch": "vp test watch",
     "universal": "napi universal",
     "version": "napi version",
