@@ -1,6 +1,6 @@
 {
   "name": "notify-status",
-  "version": "1.0.3",
+  "version": "1.0.3-alpha.0",
   "description": "Cross-platform notification authorization and Do Not Disturb status for Node / Electron (macOS + Windows, NAPI-RS prebuilt)",
   "keywords": [
     "cross-platform",
@@ -63,7 +63,6 @@
     "build": "vp run build:native && vp run build:ts",
     "build:debug": "vp run build:native:debug && vp run build:ts",
     "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
     "test:watch": "vp test watch",
     "universal": "napi universal",
     "version": "napi version",
