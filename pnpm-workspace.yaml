@@ -2,7 +2,7 @@ catalog:
   vite-plus: 0.2.8
   vite: npm:@voidzero-dev/vite-plus-core@0.2.8
 minimumReleaseAgeExclude:
-  - "ivte-plus"
+  - "vite-plus"
   - "@voidzero-dev/vite-plus-*"
 overrides:
   vite: "catalog:"
