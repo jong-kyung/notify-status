@@ -1,11 +1,18 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":semanticCommits", ":timezone(Asia/Seoul)"],
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":timezone(Asia/Seoul)",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
   "schedule": ["before 9am on monday"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "rangeStrategy": "bump",
+  "minimumReleaseAge": "3 days",
+  "postUpdateOptions": ["pnpmDedupe"],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 9am on monday"]
@@ -37,18 +44,38 @@
     {
       "groupName": "npm devDependencies (non-major)",
       "matchManagers": ["npm"],
-      "matchDepTypes": ["devDependencies"],
+      "matchDepTypes": ["devDependencies", "catalog"],
       "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "groupName": "pnpm package manager",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["packageManager"],
+      "matchDepNames": ["pnpm"],
+      "schedule": ["before 10am on the first day of the month"]
     },
     {
       "groupName": "vite-plus",
       "matchManagers": ["npm"],
-      "matchPackageNames": ["vite-plus", "/^@voidzero-dev\\/vite-plus-/"]
+      "matchPackageNames": ["vite-plus", "@voidzero-dev/vite-plus-*"]
     },
     {
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["major"],
       "addLabels": ["cargo-major"]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^rust-toolchain\\.toml$/", "/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\"",
+        "toolchain: (?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "rust",
+      "packageNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
