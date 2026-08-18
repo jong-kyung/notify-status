@@ -34,7 +34,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       changed: ${{ steps.version.outputs.changed }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Is this a new version to release?
         id: version
@@ -113,7 +113,7 @@ jobs:
           - host: windows-latest
             target: aarch64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: voidzero-dev/setup-vp@v1
         with:
           node-version: "24"
@@ -121,7 +121,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: actions/cache@v5
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index/
@@ -167,7 +167,7 @@ jobs:
       NPM_CONFIG_PROVENANCE: "true"
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: voidzero-dev/setup-vp@v1
         with:
           node-version: "24"
@@ -180,7 +180,7 @@ jobs:
       # npm token to leak or rotate.
       #
       # setup-node still runs -- it is what points npm at the public registry.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           registry-url: "https://registry.npmjs.org"
 
@@ -344,7 +344,7 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
 
