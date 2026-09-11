@@ -71,7 +71,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.9.0",
     "@types/node": "^24.13.3",
-    "electron": "^43.6.0",
+    "electron": "^44.3.0",
     "typescript": "~7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
