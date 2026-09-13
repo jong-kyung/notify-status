@@ -66,12 +66,12 @@ fn explicit_aumid_set() -> bool {
     // SAFETY: shell32 export, returns Ok(PWSTR) iff explicit AUMID has been set
     // via SetCurrentProcessExplicitAppUserModelID at any point in this process.
     let result = unsafe { GetCurrentProcessExplicitAppUserModelID() };
-    if let Ok(ptr) = result {
-        if !ptr.is_null() {
-            // The caller owns the buffer and must free it with CoTaskMemFree.
-            unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0 as _)) };
-            return true;
-        }
+    if let Ok(ptr) = result
+        && !ptr.is_null()
+    {
+        // The caller owns the buffer and must free it with CoTaskMemFree.
+        unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0 as _)) };
+        return true;
     }
     false
 }
