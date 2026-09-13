@@ -75,6 +75,9 @@ jobs:
       - name: build native
         run: vp exec napi build ${{ env.NAPI_BUILD_FLAGS }} --target ${{ matrix.target }}
         shell: bash
+      - name: test Windows Rust lifecycle
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: cargo test --locked --lib -- --test-threads=1
       - name: build ts (vp pack)
         run: vp pack
       - uses: actions/upload-artifact@v7
