@@ -4,8 +4,8 @@
 //! non-packaged Win32 process. (`UserNotificationListener` requires a
 //! manifest capability not available to Electron-style hosts.) The path that
 //! every shipping detector ends up using is an undocumented WNF state name
-//! queried via `ntdll!NtQueryWnfStateData`. We dynamically load the symbol
-//! rather than statically link it, and any failure (load, status, schema)
+//! queried via `ntdll!NtQueryWnfStateData`. We resolve the symbol once from the
+//! process-resident module, and any failure (lookup, status, schema)
 //! collapses to `false` rather than propagating.
 //!
 //! Two intentional escape valves:
@@ -35,8 +35,9 @@ pub fn read_dnd() -> bool {
 #[cfg(target_os = "windows")]
 fn read_dnd_via_wnf() -> bool {
     use std::ffi::c_void;
+    use std::sync::OnceLock;
 
-    use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+    use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
     use windows::core::s;
 
     type NtQueryWnfStateDataFn = unsafe extern "system" fn(
@@ -48,31 +49,34 @@ fn read_dnd_via_wnf() -> bool {
         buffer_size: *mut u32,
     ) -> i32;
 
-    // SAFETY: LoadLibraryA on a system library is safe; HMODULE is process-lifetime
-    // for ntdll so we don't FreeLibrary it.
-    let module = match unsafe { LoadLibraryA(s!("ntdll.dll")) } {
-        Ok(h) => h,
-        Err(_) => return false,
-    };
+    static QUERY_FN: OnceLock<Option<NtQueryWnfStateDataFn>> = OnceLock::new();
 
-    // SAFETY: GetProcAddress on a loaded module; symbol may not exist on
-    // pre-Windows-10 hosts (we don't ship there but be defensive).
-    let raw_proc = unsafe { GetProcAddress(module, s!("NtQueryWnfStateData")) };
-    let raw_proc = match raw_proc {
-        Some(p) => p,
-        None => return false,
-    };
+    // Cache only the export, including its absence, never the changing DND state.
+    let Some(func) = QUERY_FN.get_or_init(|| {
+        #[cfg(test)]
+        tests::SYMBOL_RESOLUTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-    // SAFETY: We're transmuting a function pointer to its documented (in
-    // riverar's gist; Microsoft docs the surface implicitly via WNF helpers)
-    // signature. The state name is a value-by-pointer so we must keep `state`
-    // alive across the call.
-    let func: NtQueryWnfStateDataFn = unsafe { std::mem::transmute(raw_proc) };
+        // SAFETY: ntdll is resident for the process lifetime. GetModuleHandleA
+        // borrows its handle without increasing the reference count; do not free it.
+        let module = unsafe { GetModuleHandleA(s!("ntdll.dll")) }.ok()?;
+
+        // SAFETY: The module remains loaded. A missing export is a cached fallback.
+        let raw_proc = unsafe { GetProcAddress(module, s!("NtQueryWnfStateData")) }?;
+
+        // SAFETY: Use the existing NtQueryWnfStateData ABI from riverar's gist.
+        let func: NtQueryWnfStateDataFn = unsafe { std::mem::transmute(raw_proc) };
+        Some(func)
+    }) else {
+        return false;
+    };
 
     let state: u64 = WNF_QUIETHOURS_STATE_NAME;
     let mut change_stamp: u32 = 0;
     let mut buffer: u32 = 0;
     let mut buffer_size: u32 = 4;
+
+    #[cfg(test)]
+    tests::WNF_QUERIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     // SAFETY: All pointers point to live local stack variables; buffer is a
     // u32 with the matching buffer_size of 4. NTSTATUS == 0 means success.
@@ -101,7 +105,12 @@ fn read_dnd_via_wnf() -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::*;
+
+    pub(super) static SYMBOL_RESOLUTIONS: AtomicUsize = AtomicUsize::new(0);
+    pub(super) static WNF_QUERIES: AtomicUsize = AtomicUsize::new(0);
 
     #[test]
     fn dword_zero_means_dnd_inactive() {
@@ -118,13 +127,37 @@ mod tests {
     }
 
     #[test]
-    fn env_kill_switch_short_circuits_to_false() {
+    fn wnf_queries_cache_only_the_symbol_and_honor_the_kill_switch() {
         // Single-threaded test mutates env; restore after.
         let saved = std::env::var_os("NOTIFY_STATUS_DISABLE_WNF");
         // SAFETY: single-threaded test.
         unsafe { std::env::set_var("NOTIFY_STATUS_DISABLE_WNF", "1") };
 
+        let queries_before = WNF_QUERIES.load(Ordering::Relaxed);
+        let resolutions_before = SYMBOL_RESOLUTIONS.load(Ordering::Relaxed);
         assert!(!read_dnd(), "kill-switch must short-circuit to false");
+        assert_eq!(WNF_QUERIES.load(Ordering::Relaxed), queries_before);
+        assert_eq!(
+            SYMBOL_RESOLUTIONS.load(Ordering::Relaxed),
+            resolutions_before
+        );
+
+        // Bypass the env gate to exercise the WNF path without an AUMID.
+        // These workers do not read or mutate the environment.
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                scope.spawn(|| {
+                    for _ in 0..25 {
+                        read_dnd_via_wnf();
+                    }
+                });
+            }
+        });
+
+        assert_eq!(SYMBOL_RESOLUTIONS.load(Ordering::Relaxed), 1);
+        assert_eq!(WNF_QUERIES.load(Ordering::Relaxed) - queries_before, 100);
+        assert!(!read_dnd(), "kill-switch must still work after lookup");
+        assert_eq!(WNF_QUERIES.load(Ordering::Relaxed) - queries_before, 100);
 
         // SAFETY: restore.
         unsafe {
