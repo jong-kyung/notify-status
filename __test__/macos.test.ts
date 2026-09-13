@@ -1,3 +1,7 @@
+/// <reference types="node" />
+
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, test } from "vite-plus/test";
 
 import { getNotificationStatus } from "../src/index.js";
@@ -17,6 +21,28 @@ describe("macOS — AE6 (unbundled host)", () => {
     expect(status.authorization).toBe("unsupported");
     expect(status.doNotDisturb).toBe(false);
     expect(status.reason).toBe("noBundleId");
+  });
+
+  macTest("repeated queries do not autorelease objects without a pool", () => {
+    const bindingUrl = new URL("../binding.cjs", import.meta.url).href;
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `const { getNotificationStatus } = await import(${JSON.stringify(bindingUrl)});
+         for (let i = 0; i < 100; i++) await getNotificationStatus();`,
+      ],
+      {
+        env: { ...process.env, OBJC_DEBUG_MISSING_POOLS: "YES" },
+        encoding: "utf8",
+        timeout: 10_000,
+      },
+    );
+
+    expect(child.error).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+    expect(child.stderr).not.toContain("MISSING POOLS");
   });
 
   macTest("ten concurrent calls all resolve identically", async () => {

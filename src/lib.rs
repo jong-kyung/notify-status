@@ -29,7 +29,8 @@ pub async fn get_notification_status() -> napi::Result<NotificationStatus> {
 
 #[cfg(target_os = "macos")]
 async fn run_platform_query() -> Result<NotificationStatus, ()> {
-    tokio::task::spawn_blocking(macos::query)
+    // Keep the thread-local pool on the worker, including the no-bundle preflight.
+    tokio::task::spawn_blocking(|| objc2::rc::autoreleasepool(|_| macos::query()))
         .await
         .map_err(|_join_err| ())
 }
