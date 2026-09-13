@@ -54,6 +54,8 @@ structured `unsupported` payload — your code only needs the `.then` branch.
 | Windows 10 1607+ / 11 (`win32-x64`, `win32-arm64`) | full (`ToastNotificationManager.Setting`)    | Focus Assist / Quiet Hours via `ntdll!NtQueryWnfStateData`  | undocumented WNF path; opt-out via `NOTIFY_STATUS_DISABLE_WNF=1`                       |
 | Linux & everything else                            | always `unsupported` (`unsupportedPlatform`) | always `false`                                              | no per-app permission concept on D-Bus; honest `unsupported` instead of fake "granted" |
 
+On Linux and other unsupported operating systems, the JavaScript entry point returns `unsupportedPlatform` without loading a native binary. On macOS and Windows, native binding installation or loading errors can still throw during import.
+
 ## What `unsupported` means
 
 The library reports `authorization: 'unsupported'` when it could not determine

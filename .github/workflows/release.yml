@@ -372,6 +372,9 @@ jobs:
           m.getNotificationStatus().then((r) => {
             console.log(JSON.stringify(r))
             assert.strictEqual(typeof r.authorization, 'string')
+            if (process.platform === 'linux') {
+              assert.deepStrictEqual(r, { authorization: 'unsupported', doNotDisturb: false, platform: 'linux', reason: 'unsupportedPlatform' })
+            }
           })
           EOF
               cat > check.mjs <<'EOF'
@@ -380,18 +383,12 @@ jobs:
           const r = await getNotificationStatus()
           console.log(JSON.stringify(r))
           assert.strictEqual(typeof r.authorization, 'string')
+          if (process.platform === 'linux') {
+            assert.deepStrictEqual(r, { authorization: 'unsupported', doNotDisturb: false, platform: 'linux', reason: 'unsupportedPlatform' })
+          }
           EOF
 
-              if [ "$RUNNER_OS" = 'Linux' ]; then
-                # No prebuilt Linux addon ships. The install must still succeed
-                # (npm skips non-matching optional dependencies), and loading
-                # must fail with the loader's own "native binding" message
-                # rather than something stranger.
-                node -e "try { require('notify-status'); process.exit(1) } catch (err) { console.log(err.message); if (!/native binding/i.test(err.message)) process.exit(1) }"
-              else
-                node check.cjs
-                node check.mjs
-              fi
+              node check.cjs && node check.mjs
             ); then
               echo "Installed and exercised notify-status@$VERSION on attempt $attempt"
               exit 0
