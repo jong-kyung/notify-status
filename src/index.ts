@@ -6,7 +6,17 @@ export type { Authorization, Reason, NotificationStatus } from "../binding.cjs";
 const require = createRequire(import.meta.url);
 const binding: {
   getNotificationStatus: () => Promise<NotificationStatus>;
-} = require("../binding.cjs");
+} =
+  process.platform === "darwin" || process.platform === "win32"
+    ? require("../binding.cjs")
+    : {
+        getNotificationStatus: async () => ({
+          authorization: "unsupported",
+          doNotDisturb: false,
+          platform: process.platform,
+          reason: "unsupportedPlatform",
+        }),
+      };
 
 /**
  * Read-only query for the host's notification authorization and DND state.
