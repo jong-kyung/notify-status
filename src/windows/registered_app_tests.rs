@@ -96,7 +96,10 @@ fn registered_aumid_queries_preserve_winrt_lifecycle() {
     // SAFETY: This test is run in its own process, so no no-AUMID test can race it.
     unsafe { SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(&aumid)) }.unwrap();
     assert!(super::authorization::has_aumid());
-    eprintln!("registered desktop AUMID on {}", std::env::consts::ARCH);
+    eprintln!(
+        "registered desktop AUMID {aumid} on {}",
+        std::env::consts::ARCH
+    );
 
     super::tests::assert_queries_preserve_initialization(|status| {
         assert!(
@@ -104,9 +107,10 @@ fn registered_aumid_queries_preserve_winrt_lifecycle() {
                 status.authorization,
                 Authorization::Granted | Authorization::Denied
             ),
-            "registered AUMID query failed: authorization={:?}, reason={:?}",
+            "registered AUMID query failed: authorization={:?}, reason={:?}, worker_has_aumid={}",
             status.authorization,
             status.reason,
+            super::authorization::has_aumid(),
         );
         assert_eq!(status.reason, None);
         assert_eq!(status.platform, "win32");

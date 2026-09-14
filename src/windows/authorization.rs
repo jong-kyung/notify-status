@@ -95,15 +95,28 @@ pub fn read_authorization() -> Result<Authorization, AuthError> {
 
     // Desktop apps must pass their explicit AUMID. The no-argument overload
     // uses package identity and remains appropriate for MSIX/UWP hosts.
-    let notifier = match explicit_aumid() {
-        Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(&aumid),
+    let aumid = explicit_aumid();
+    let notifier = match &aumid {
+        Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(aumid),
         None => ToastNotificationManager::CreateToastNotifier(),
     }
-    .map_err(|err| classify_hresult(err.code().0))?;
+    .map_err(|err| {
+        #[cfg(test)]
+        eprintln!(
+            "CreateToastNotifier failed: aumid={aumid:?}, HRESULT=0x{:08X}, error={err}",
+            err.code().0 as u32,
+        );
+        classify_hresult(err.code().0)
+    })?;
 
-    let setting = notifier
-        .Setting()
-        .map_err(|err| classify_hresult(err.code().0))?;
+    let setting = notifier.Setting().map_err(|err| {
+        #[cfg(test)]
+        eprintln!(
+            "ToastNotifier.Setting failed: aumid={aumid:?}, HRESULT=0x{:08X}, error={err}",
+            err.code().0 as u32,
+        );
+        classify_hresult(err.code().0)
+    })?;
 
     Ok(map_notification_setting(setting.0))
 }

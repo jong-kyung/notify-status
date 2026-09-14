@@ -134,6 +134,7 @@ mod tests {
         ] {
             // A fresh thread starts without an explicit COM initialization.
             std::thread::spawn(move || {
+                eprintln!("checking query lifecycle: initial_mode={initial_mode:?}");
                 if let Some(mode) = initial_mode {
                     // SAFETY: All successful initializations are balanced on this thread.
                     unsafe { CoInitializeEx(None, mode) }.ok().unwrap();
