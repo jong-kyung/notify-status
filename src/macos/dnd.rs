@@ -17,18 +17,21 @@ use crate::macos::version::macos_major_version;
 const FIRST_UNSUPPORTED_MAJOR: u32 = 26;
 
 pub fn read_dnd() -> bool {
-    read_dnd_with_version(macos_major_version())
+    read_dnd_with_version(macos_major_version(), assertions_json_path)
 }
 
-/// Test-injectable version of `read_dnd` that takes the macOS major as a parameter.
-pub(crate) fn read_dnd_with_version(macos_major: u32) -> bool {
+/// Test-injectable version with a lazy path lookup to preserve the version gate.
+pub(crate) fn read_dnd_with_version(
+    macos_major: u32,
+    assertions_path: impl FnOnce() -> Option<PathBuf>,
+) -> bool {
     if macos_major >= FIRST_UNSUPPORTED_MAJOR {
         // Tahoe+: documented stub. v1.x will add a per-version branch once the
         // new file shape has been observed on a Tahoe host.
         return false;
     }
 
-    let path = match assertions_json_path() {
+    let path = match assertions_path() {
         Some(p) => p,
         None => return false,
     };
@@ -53,36 +56,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn macos_26_and_above_return_false_without_reading_file() {
-        // We cannot easily prove the file isn't read, but we can prove the
-        // version gate short-circuits on Tahoe even when no HOME is set.
-        let saved_home = std::env::var_os("HOME");
-        // SAFETY: single-threaded test, restore afterwards.
-        unsafe { std::env::remove_var("HOME") };
-
-        assert!(!read_dnd_with_version(26));
-        assert!(!read_dnd_with_version(27));
-        assert!(!read_dnd_with_version(99));
-
-        if let Some(h) = saved_home {
-            // SAFETY: restore.
-            unsafe { std::env::set_var("HOME", h) };
+    fn macos_26_and_above_skip_path_lookup() {
+        for major in [26, 27, 99] {
+            assert!(!read_dnd_with_version(major, || {
+                panic!("unsupported macOS versions must not look up the assertions path")
+            }));
         }
     }
 
     #[test]
-    fn pre_26_versions_attempt_file_read() {
-        // With no HOME and pre-26 version, file lookup fails → false (no panic).
-        let saved_home = std::env::var_os("HOME");
-        // SAFETY: single-threaded test, restore afterwards.
-        unsafe { std::env::remove_var("HOME") };
-
-        assert!(!read_dnd_with_version(15));
-        assert!(!read_dnd_with_version(12));
-
-        if let Some(h) = saved_home {
-            // SAFETY: restore.
-            unsafe { std::env::set_var("HOME", h) };
+    fn pre_26_versions_attempt_path_lookup() {
+        for major in [12, 15, 25] {
+            let mut path_requested = false;
+            assert!(!read_dnd_with_version(major, || {
+                path_requested = true;
+                // A missing HOME is represented by a path lookup returning None.
+                None
+            }));
+            assert!(path_requested);
         }
     }
 }
