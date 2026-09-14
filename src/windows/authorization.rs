@@ -56,24 +56,22 @@ pub fn classify_hresult(hresult_raw: i32) -> AuthError {
 
 #[cfg(target_os = "windows")]
 pub fn has_aumid() -> bool {
-    explicit_aumid_set() || package_aumid_set()
+    explicit_aumid().is_some() || package_aumid_set()
 }
 
 #[cfg(target_os = "windows")]
-fn explicit_aumid_set() -> bool {
+fn explicit_aumid() -> Option<windows::core::HSTRING> {
     use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
 
-    // SAFETY: shell32 export, returns Ok(PWSTR) iff explicit AUMID has been set
-    // via SetCurrentProcessExplicitAppUserModelID at any point in this process.
-    let result = unsafe { GetCurrentProcessExplicitAppUserModelID() };
-    if let Ok(ptr) = result
-        && !ptr.is_null()
-    {
-        // The caller owns the buffer and must free it with CoTaskMemFree.
-        unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0 as _)) };
-        return true;
+    // SAFETY: shell32 returns a caller-owned, null-terminated AUMID on success.
+    let ptr = unsafe { GetCurrentProcessExplicitAppUserModelID() }.ok()?;
+    if ptr.is_null() {
+        return None;
     }
-    false
+    // SAFETY: Copy the string before releasing the native allocation.
+    let aumid = unsafe { ptr.to_hstring() };
+    unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0.cast())) };
+    Some(aumid)
 }
 
 #[cfg(target_os = "windows")]
@@ -95,8 +93,13 @@ fn package_aumid_set() -> bool {
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    let notifier = ToastNotificationManager::CreateToastNotifier()
-        .map_err(|err| classify_hresult(err.code().0))?;
+    // Desktop apps must pass their explicit AUMID. The no-argument overload
+    // uses package identity and remains appropriate for MSIX/UWP hosts.
+    let notifier = match explicit_aumid() {
+        Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(&aumid),
+        None => ToastNotificationManager::CreateToastNotifier(),
+    }
+    .map_err(|err| classify_hresult(err.code().0))?;
 
     let setting = notifier
         .Setting()
