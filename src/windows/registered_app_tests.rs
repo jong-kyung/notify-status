@@ -1,6 +1,7 @@
 //! Run explicitly in a fresh process because setting an AUMID is process-wide.
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::{
@@ -63,11 +64,64 @@ fn register_shortcut(path: &Path, aumid: &str) {
     }
 }
 
+fn initialize_toast_settings(aumid: &str) {
+    use windows::Data::Xml::Dom::XmlDocument;
+    use windows::Foundation::{DateTime, IReference, PropertyValue};
+    use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+    use windows::Win32::System::WinRT::{RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize};
+    use windows::core::h;
+
+    struct WinrtGuard;
+    impl Drop for WinrtGuard {
+        fn drop(&mut self) {
+            // SAFETY: Balances the successful RoInitialize below on the same thread.
+            unsafe { RoUninitialize() };
+        }
+    }
+
+    // SAFETY: Shortcut setup has released COM, and all WinRT objects drop before the guard.
+    unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.unwrap();
+    let _winrt = WinrtGuard;
+
+    // A fresh unpackaged AUMID has no Setting record until its first toast is sent.
+    // See https://github.com/CommunityToolkit/WindowsCommunityToolkit/issues/3626.
+    // This initialization belongs only in the fixture, never in the read-only query.
+    let aumid = HSTRING::from(aumid);
+    let notifier = ToastNotificationManager::CreateToastNotifierWithId(&aumid).unwrap();
+    let content = XmlDocument::new().unwrap();
+    content
+        .LoadXml(h!(r#"<toast><visual><binding template="ToastGeneric"><text>notify-status test setup</text></binding></visual><audio silent="true"/></toast>"#))
+        .unwrap();
+    let toast = ToastNotification::CreateToastNotification(&content).unwrap();
+    toast.SetSuppressPopup(true).unwrap();
+    toast.SetTag(h!("setup")).unwrap();
+    toast.SetGroup(h!("notify-status")).unwrap();
+
+    // Expire promptly even if removal fails. WinRT uses 100 ns ticks since 1601.
+    let expires = (SystemTime::now() + Duration::from_secs(15))
+        .duration_since(UNIX_EPOCH)
+        .unwrap();
+    let expiration: IReference<DateTime> = PropertyValue::CreateDateTime(DateTime {
+        UniversalTime: 116_444_736_000_000_000 + i64::try_from(expires.as_nanos() / 100).unwrap(),
+    })
+    .unwrap()
+    .cast()
+    .unwrap();
+    toast.SetExpirationTime(&expiration).unwrap();
+
+    let shown = notifier.Show(&toast);
+    // Attempt scoped cleanup even if Show fails, without touching other apps' notifications.
+    let removed = ToastNotificationManager::History().and_then(|history| {
+        history.RemoveGroupedTagWithId(h!("setup"), h!("notify-status"), &aumid)
+    });
+    shown.expect("initialize the test AUMID with a silent toast");
+    removed.expect("remove the fixture's initialization toast");
+}
+
 #[test]
 #[ignore = "registers a desktop AUMID; CI runs this alone in a separate process"]
 fn registered_aumid_queries_preserve_winrt_lifecycle() {
     use std::os::windows::ffi::OsStringExt;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     // SAFETY: The known-folder API returns a caller-owned, null-terminated string.
     let programs =
@@ -100,6 +154,7 @@ fn registered_aumid_queries_preserve_winrt_lifecycle() {
         "registered desktop AUMID {aumid} on {}",
         std::env::consts::ARCH
     );
+    initialize_toast_settings(&aumid);
 
     super::tests::assert_queries_preserve_initialization(|status| {
         assert!(
