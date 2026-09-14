@@ -89,13 +89,17 @@ fn package_aumid_set() -> bool {
     matches!(rc.0, 0 | 122)
 }
 
+fn notifier_aumid<T>(has_package_aumid: bool, explicit: impl FnOnce() -> Option<T>) -> Option<T> {
+    if has_package_aumid { None } else { explicit() }
+}
+
 #[cfg(target_os = "windows")]
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    // Desktop apps must pass their explicit AUMID. The no-argument overload
-    // uses package identity and remains appropriate for MSIX/UWP hosts.
-    let aumid = explicit_aumid();
+    // Package identity wins even if a desktop host also sets an explicit AUMID.
+    // Only unpackaged desktop apps pass their explicit ID to the notifier.
+    let aumid = notifier_aumid(package_aumid_set(), explicit_aumid);
     let notifier = match &aumid {
         Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(aumid),
         None => ToastNotificationManager::CreateToastNotifier(),
@@ -124,6 +128,20 @@ pub fn read_authorization() -> Result<Authorization, AuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_identity_takes_precedence_over_explicit_aumid() {
+        for aumid in [None, Some("desktop.app")] {
+            assert_eq!(notifier_aumid(true, || aumid), None);
+            assert_eq!(notifier_aumid(false, || aumid), aumid);
+        }
+        assert_eq!(
+            notifier_aumid::<&str>(true, || panic!(
+                "package identity must skip explicit lookup"
+            )),
+            None,
+        );
+    }
 
     #[test]
     fn maps_documented_notification_setting_values() {
