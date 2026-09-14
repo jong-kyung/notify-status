@@ -31,8 +31,18 @@ pub fn query() -> NotificationStatus {
 
 #[cfg(target_os = "windows")]
 fn query_inner() -> NotificationStatus {
+    use windows::Win32::System::WinRT::{RO_INIT_MULTITHREADED, RoInitialize};
+
+    // SAFETY: The worker initializes WinRT before any notification operation.
+    query_inner_with_initialize(|| unsafe { RoInitialize(RO_INIT_MULTITHREADED) })
+}
+
+#[cfg(target_os = "windows")]
+fn query_inner_with_initialize(
+    initialize: impl FnOnce() -> windows::core::Result<()>,
+) -> NotificationStatus {
     use windows::Win32::Foundation::RPC_E_CHANGED_MODE;
-    use windows::Win32::System::WinRT::{RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize};
+    use windows::Win32::System::WinRT::RoUninitialize;
 
     struct RoUninitializeGuard;
 
@@ -46,8 +56,7 @@ fn query_inner() -> NotificationStatus {
 
     // Both S_OK and S_FALSE require a matching RoUninitialize. A host's STA
     // returns RPC_E_CHANGED_MODE, which we tolerate without owning its cleanup.
-    // SAFETY: WinRT initialization entrypoint, balanced by the local guard.
-    let _winrt = match unsafe { RoInitialize(RO_INIT_MULTITHREADED) } {
+    let _winrt = match initialize() {
         Ok(()) => Some(RoUninitializeGuard),
         Err(err) if err.code() == RPC_E_CHANGED_MODE => None,
         Err(_) => return NotificationStatus::unsupported("win32", Reason::InternalError),
@@ -83,6 +92,9 @@ fn query_inner() -> NotificationStatus {
 }
 
 #[cfg(all(test, target_os = "windows"))]
+mod registered_app_tests;
+
+#[cfg(all(test, target_os = "windows"))]
 mod tests {
     use windows::Win32::Foundation::S_FALSE;
     use windows::Win32::System::Com::{
@@ -92,7 +104,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn initialization_failures_return_internal_error() {
+        use crate::Authorization;
+        use windows::Win32::Foundation::{E_ACCESSDENIED, E_FAIL, E_OUTOFMEMORY};
+        use windows::core::Error;
+
+        for code in [E_FAIL, E_OUTOFMEMORY, E_ACCESSDENIED] {
+            let status = query_inner_with_initialize(|| Err(Error::from_hresult(code)));
+            assert_eq!(status.authorization, Authorization::Unsupported);
+            assert_eq!(status.reason, Some(Reason::InternalError));
+            assert_eq!(status.platform, "win32");
+            assert!(!status.do_not_disturb);
+        }
+    }
+
+    #[test]
     fn repeated_queries_preserve_the_threads_initialization_state() {
+        assert_queries_preserve_initialization(|status| {
+            // The regular test executable has no AUMID, exercising the early return.
+            assert_eq!(status.reason, Some(Reason::NoAumid));
+        });
+    }
+
+    pub(super) fn assert_queries_preserve_initialization(assert_status: fn(NotificationStatus)) {
         for initial_mode in [
             None,
             Some(COINIT_MULTITHREADED),
@@ -106,8 +140,7 @@ mod tests {
                 }
 
                 for _ in 0..100 {
-                    // The test executable has no AUMID, exercising the early return.
-                    assert_eq!(query().reason, Some(Reason::NoAumid));
+                    assert_status(query());
                 }
 
                 if let Some(mode) = initial_mode {

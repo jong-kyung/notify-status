@@ -32,6 +32,17 @@ pub fn read_dnd() -> bool {
     read_dnd_via_wnf()
 }
 
+fn read_dnd_with_cache<T>(
+    cache: &std::sync::OnceLock<Option<T>>,
+    resolve: impl FnOnce() -> Option<T>,
+    query: impl FnOnce(&T) -> Option<u32>,
+) -> bool {
+    let Some(func) = cache.get_or_init(resolve) else {
+        return false;
+    };
+    query(func).is_some_and(dword_means_dnd_active)
+}
+
 #[cfg(target_os = "windows")]
 fn read_dnd_via_wnf() -> bool {
     use std::ffi::c_void;
@@ -52,50 +63,48 @@ fn read_dnd_via_wnf() -> bool {
     static QUERY_FN: OnceLock<Option<NtQueryWnfStateDataFn>> = OnceLock::new();
 
     // Cache only the export, including its absence, never the changing DND state.
-    let Some(func) = QUERY_FN.get_or_init(|| {
-        #[cfg(test)]
-        tests::SYMBOL_RESOLUTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    read_dnd_with_cache(
+        &QUERY_FN,
+        || {
+            #[cfg(test)]
+            tests::SYMBOL_RESOLUTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        // SAFETY: ntdll is resident for the process lifetime. GetModuleHandleA
-        // borrows its handle without increasing the reference count; do not free it.
-        let module = unsafe { GetModuleHandleA(s!("ntdll.dll")) }.ok()?;
+            // SAFETY: ntdll is resident for the process lifetime. GetModuleHandleA
+            // borrows its handle without increasing the reference count; do not free it.
+            let module = unsafe { GetModuleHandleA(s!("ntdll.dll")) }.ok()?;
 
-        // SAFETY: The module remains loaded. A missing export is a cached fallback.
-        let raw_proc = unsafe { GetProcAddress(module, s!("NtQueryWnfStateData")) }?;
+            // SAFETY: The module remains loaded. A missing export is a cached fallback.
+            let raw_proc = unsafe { GetProcAddress(module, s!("NtQueryWnfStateData")) }?;
 
-        // SAFETY: Use the existing NtQueryWnfStateData ABI from riverar's gist.
-        let func: NtQueryWnfStateDataFn = unsafe { std::mem::transmute(raw_proc) };
-        Some(func)
-    }) else {
-        return false;
-    };
+            // SAFETY: Use the existing NtQueryWnfStateData ABI from riverar's gist.
+            let func: NtQueryWnfStateDataFn = unsafe { std::mem::transmute(raw_proc) };
+            Some(func)
+        },
+        |func| {
+            let state: u64 = WNF_QUIETHOURS_STATE_NAME;
+            let mut change_stamp: u32 = 0;
+            let mut buffer: u32 = 0;
+            let mut buffer_size: u32 = 4;
 
-    let state: u64 = WNF_QUIETHOURS_STATE_NAME;
-    let mut change_stamp: u32 = 0;
-    let mut buffer: u32 = 0;
-    let mut buffer_size: u32 = 4;
+            #[cfg(test)]
+            tests::WNF_QUERIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-    #[cfg(test)]
-    tests::WNF_QUERIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // SAFETY: All pointers point to live local stack variables; buffer is a
+            // u32 with the matching buffer_size of 4. NTSTATUS == 0 means success.
+            let status = unsafe {
+                func(
+                    &state,
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    &mut change_stamp,
+                    &mut buffer as *mut u32 as *mut c_void,
+                    &mut buffer_size,
+                )
+            };
 
-    // SAFETY: All pointers point to live local stack variables; buffer is a
-    // u32 with the matching buffer_size of 4. NTSTATUS == 0 means success.
-    let status = unsafe {
-        func(
-            &state,
-            std::ptr::null(),
-            std::ptr::null(),
-            &mut change_stamp,
-            &mut buffer as *mut u32 as *mut c_void,
-            &mut buffer_size,
-        )
-    };
-
-    if status != 0 {
-        return false;
-    }
-
-    dword_means_dnd_active(buffer)
+            (status == 0).then_some(buffer)
+        },
+    )
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -113,6 +122,63 @@ mod tests {
     pub(super) static WNF_QUERIES: AtomicUsize = AtomicUsize::new(0);
 
     #[test]
+    fn missing_symbol_is_cached_without_querying() {
+        let cache = std::sync::OnceLock::<Option<()>>::new();
+        let mut resolutions = 0;
+        let mut queries = 0;
+
+        for _ in 0..100 {
+            assert!(!read_dnd_with_cache(
+                &cache,
+                || {
+                    resolutions += 1;
+                    None
+                },
+                |_| {
+                    queries += 1;
+                    Some(1)
+                },
+            ));
+        }
+
+        assert_eq!(resolutions, 1);
+        assert_eq!(queries, 0);
+    }
+
+    #[test]
+    fn cached_symbol_reads_each_new_dnd_value() {
+        let cache = std::sync::OnceLock::new();
+        let mut resolutions = 0;
+        let mut queries = 0;
+
+        for (value, expected) in [
+            (Some(0), false),
+            (Some(1), true),
+            (Some(2), true),
+            (Some(0), false),
+            (None, false),
+        ] {
+            assert_eq!(
+                read_dnd_with_cache(
+                    &cache,
+                    || {
+                        resolutions += 1;
+                        Some(())
+                    },
+                    |_| {
+                        queries += 1;
+                        value
+                    },
+                ),
+                expected,
+            );
+        }
+
+        assert_eq!(resolutions, 1);
+        assert_eq!(queries, 5);
+    }
+
+    #[test]
     fn dword_zero_means_dnd_inactive() {
         assert!(!dword_means_dnd_active(0));
     }
@@ -128,6 +194,11 @@ mod tests {
 
     #[test]
     fn wnf_queries_cache_only_the_symbol_and_honor_the_kill_switch() {
+        if let Ok(expected) = std::env::var("NOTIFY_STATUS_TEST_ARCH") {
+            assert_eq!(std::env::consts::ARCH, expected);
+        }
+        eprintln!("executing native WNF queries on {}", std::env::consts::ARCH);
+
         // Single-threaded test mutates env; restore after.
         let saved = std::env::var_os("NOTIFY_STATUS_DISABLE_WNF");
         // SAFETY: single-threaded test.
