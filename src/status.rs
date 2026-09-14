@@ -27,33 +27,6 @@ pub struct NotificationStatus {
 }
 
 impl NotificationStatus {
-    pub fn granted(platform: impl Into<String>, do_not_disturb: bool) -> Self {
-        Self {
-            authorization: Authorization::Granted,
-            do_not_disturb,
-            platform: platform.into(),
-            reason: None,
-        }
-    }
-
-    pub fn denied(platform: impl Into<String>, do_not_disturb: bool) -> Self {
-        Self {
-            authorization: Authorization::Denied,
-            do_not_disturb,
-            platform: platform.into(),
-            reason: None,
-        }
-    }
-
-    pub fn not_determined(platform: impl Into<String>, do_not_disturb: bool) -> Self {
-        Self {
-            authorization: Authorization::NotDetermined,
-            do_not_disturb,
-            platform: platform.into(),
-            reason: None,
-        }
-    }
-
     pub fn unsupported(platform: impl Into<String>, reason: Reason) -> Self {
         Self {
             authorization: Authorization::Unsupported,
