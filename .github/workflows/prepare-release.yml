@@ -56,10 +56,16 @@ jobs:
             exit 1
           fi
 
-      # Every file that carries the version: the manifest, the crate, and the
-      # crate's lockfile entry. The npm/ platform manifests are not in git --
-      # release.yml generates them with `napi create-npm-dirs`, which reads the
-      # version from package.json, so they cannot drift.
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: .node-version
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - run: vp install --frozen-lockfile
+
+      # Update the manifests first, then regenerate the loader below. The npm/
+      # platform manifests are not in git; release.yml generates them from
+      # package.json with `napi create-npm-dirs`.
       - name: Bump versions
         run: |
           set -euo pipefail
@@ -77,6 +83,11 @@ jobs:
             const lock = "Cargo.lock";
             fs.writeFileSync(lock, fs.readFileSync(lock, "utf8").replace(/(\[\[package\]\]\nname = "notify-status"\nversion = ")[^"]*/, `$1${version}`));
           '
+
+      - name: Generate and verify native bindings
+        run: |
+          vp run build:native:debug
+          vp test __test__/binding.test.ts
 
       - name: Verify bump
         run: |
@@ -99,9 +110,9 @@ jobs:
           echo 'Files changed:'
           git diff --name-only
 
-      # This PR is authored with GITHUB_TOKEN, so it will not trigger CI. That
-      # is acceptable: the diff is version strings only, and both CI and the
-      # release build matrix run on the merge commit.
+      # This PR is authored with GITHUB_TOKEN, so it will not trigger CI.
+      # The generated loader is tested above; full CI and the release build
+      # matrix run on the merge commit.
       - name: Open release PR
         run: |
           set -euo pipefail
@@ -109,7 +120,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "$branch"
-          git add package.json Cargo.toml Cargo.lock
+          git add package.json Cargo.toml Cargo.lock binding.cjs binding.d.cts
           git commit -m "release: v$VERSION"
           # Force-with-lease so a rerun can recover: if PR creation failed last
           # time, the branch is already on the remote and a rerun builds a

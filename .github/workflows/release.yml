@@ -91,8 +91,8 @@ jobs:
 
   # Built from the release commit rather than reused from the CI run, so the
   # provenance of the published binaries does not depend on artifact retention.
-  # Tests are not repeated here -- CI runs them on this same commit, and the
-  # publish job below waits for a human who can see that result.
+  # CI runs the full suite on this same commit. The publish job verifies the
+  # generated loader separately and waits for a human who can see CI's result.
   build:
     name: build / ${{ matrix.target }}
     needs: check
@@ -137,6 +137,15 @@ jobs:
         with:
           name: bindings-${{ matrix.target }}
           path: ${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
+      - name: Upload generated bindings
+        if: matrix.target == 'aarch64-apple-darwin'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-bindings
+          path: |
+            binding.cjs
+            binding.d.cts
           if-no-files-found: error
 
   # Nothing reaches npm until a reviewer approves this job in the release
@@ -195,7 +204,17 @@ jobs:
       - name: Download native addons
         uses: actions/download-artifact@v8
         with:
+          pattern: bindings-*
           path: artifacts
+
+      # Use the loader from the release build, not the checked-in snapshot.
+      - name: Download generated bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-bindings
+          path: .
+      - name: Verify generated loader version
+        run: vp test __test__/binding.test.ts
 
       - name: create npm dirs
         # napi artifacts won't mkdir; npm/ is gitignored, and create-npm-dirs
@@ -343,6 +362,7 @@ jobs:
     permissions: {}
     env:
       VERSION: ${{ needs.check.outputs.version }}
+      NAPI_RS_ENFORCE_VERSION_CHECK: "1"
     steps:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -365,6 +385,10 @@ jobs:
               cd "$install_dir"
               npm init -y >/dev/null
               npm install "notify-status@$VERSION"
+
+              # In this temporary install, force the optional-package path so
+              # bundled addons cannot bypass the strict version check.
+              rm -f node_modules/notify-status/*.node
 
               cat > check.cjs <<'EOF'
           const assert = require('node:assert')
