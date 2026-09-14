@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -12,6 +14,7 @@ const DIST_ENTRY = path.resolve(__dirname, "..", "dist", "index.cjs");
 const SENTINEL_BEGIN = "===NOTIFY_STATUS_BEGIN===";
 const SENTINEL_END = "===NOTIFY_STATUS_END===";
 const ALLOWED_AUTH = ["granted", "denied", "notDetermined", "unsupported"] as const;
+const ELECTRON_TEST_TIMEOUT = 30_000;
 
 function resolveElectronBinary(): string | null {
   try {
@@ -31,6 +34,38 @@ const guardsPass = electronBinary != null && distBuilt;
 const macTest = isMacOS && guardsPass ? test : test.skip;
 const winTest = isWindows && guardsPass ? test : test.skip;
 
+describe("fixture process timeout", () => {
+  test("kills an overdue child even when it ignores SIGTERM", async () => {
+    const result = await runFixture(
+      process.execPath,
+      {},
+      [
+        "-e",
+        // Exit eventually even before the timeout fix, so a failing test cannot leak a child.
+        "process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 1_000);",
+      ],
+      100,
+    );
+
+    expect(result.exitCode).toBeNull();
+    expect(result.signal).toBe("SIGKILL");
+  });
+
+  test("preserves output and the exit code when a child completes", async () => {
+    const result = await runFixture(process.execPath, {}, [
+      "-e",
+      "console.log('fixture stdout'); console.error('fixture stderr');",
+    ]);
+
+    expect(result).toEqual({
+      stdout: "fixture stdout\n",
+      stderr: "fixture stderr\n",
+      exitCode: 0,
+      signal: null,
+    });
+  });
+});
+
 describe("macOS — Electron host (dev mode)", () => {
   emitSkipReasons(isMacOS);
 
@@ -49,7 +84,7 @@ describe("macOS — Electron host (dev mode)", () => {
         `Unexpected internalError from Electron host. Captured: ${JSON.stringify(status)}`,
       ).not.toBe("internalError");
     },
-    30_000,
+    ELECTRON_TEST_TIMEOUT,
   );
 });
 
@@ -65,7 +100,7 @@ describe("Windows — Electron host (dev mode)", () => {
       expect(status.platform).toBe("win32");
       assertCommonShape(status);
     },
-    30_000,
+    ELECTRON_TEST_TIMEOUT,
   );
 
   winTest(
@@ -77,7 +112,7 @@ describe("Windows — Electron host (dev mode)", () => {
       expect(status.platform).toBe("win32");
       assertCommonShape(status);
     },
-    30_000,
+    ELECTRON_TEST_TIMEOUT,
   );
 });
 
@@ -91,11 +126,11 @@ async function runAndParse(
   label: string,
   env: Record<string, string>,
 ): Promise<Record<string, unknown>> {
-  const { stdout, stderr, exitCode } = await runFixture(electronBinary as string, env);
+  const { stdout, stderr, exitCode, signal } = await runFixture(electronBinary as string, env);
 
   expect(
     exitCode,
-    `electron exited with non-zero code.\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+    `electron exited with code ${exitCode} and signal ${signal}.\nstdout:\n${stdout}\nstderr:\n${stderr}`,
   ).toBe(0);
 
   const beginIdx = stdout.indexOf(SENTINEL_BEGIN);
@@ -132,17 +167,23 @@ interface FixtureResult {
   stdout: string;
   stderr: string;
   exitCode: number | null;
+  signal: NodeJS.Signals | null;
 }
 
 function runFixture(
   electronPath: string,
   extraEnv: Record<string, string>,
+  args = [FIXTURE_DIR],
+  timeout = ELECTRON_TEST_TIMEOUT - 5_000,
 ): Promise<FixtureResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(electronPath, [FIXTURE_DIR], {
+    const child = spawn(electronPath, args, {
       cwd: path.resolve(__dirname, ".."),
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...extraEnv },
+      // Terminate before the test runner's deadline, including an unresponsive child.
+      timeout,
+      killSignal: "SIGKILL",
     });
 
     let stdout = "";
@@ -155,7 +196,7 @@ function runFixture(
     });
 
     child.on("error", (err) => reject(err));
-    child.on("close", (exitCode) => resolve({ stdout, stderr, exitCode }));
+    child.on("close", (exitCode, signal) => resolve({ stdout, stderr, exitCode, signal }));
   });
 }
 
