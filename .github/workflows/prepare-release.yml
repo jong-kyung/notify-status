@@ -56,11 +56,11 @@ jobs:
             exit 1
           fi
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: voidzero-dev/setup-vp@9fd26ff49f9b5e6276c2b493da4454ad4527f7f4 # v1.20.0
         with:
           node-version-file: .node-version
           cache: true
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - run: vp install --frozen-lockfile
 
       # Update the manifests first, then regenerate the loader below. The npm/
