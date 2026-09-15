@@ -56,24 +56,22 @@ pub fn classify_hresult(hresult_raw: i32) -> AuthError {
 
 #[cfg(target_os = "windows")]
 pub fn has_aumid() -> bool {
-    explicit_aumid_set() || package_aumid_set()
+    explicit_aumid().is_some() || package_aumid_set()
 }
 
 #[cfg(target_os = "windows")]
-fn explicit_aumid_set() -> bool {
+fn explicit_aumid() -> Option<windows::core::HSTRING> {
     use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
 
-    // SAFETY: shell32 export, returns Ok(PWSTR) iff explicit AUMID has been set
-    // via SetCurrentProcessExplicitAppUserModelID at any point in this process.
-    let result = unsafe { GetCurrentProcessExplicitAppUserModelID() };
-    if let Ok(ptr) = result
-        && !ptr.is_null()
-    {
-        // The caller owns the buffer and must free it with CoTaskMemFree.
-        unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0 as _)) };
-        return true;
+    // SAFETY: shell32 returns a caller-owned, null-terminated AUMID on success.
+    let ptr = unsafe { GetCurrentProcessExplicitAppUserModelID() }.ok()?;
+    if ptr.is_null() {
+        return None;
     }
-    false
+    // SAFETY: Copy the string before releasing the native allocation.
+    let aumid = unsafe { ptr.to_hstring() };
+    unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(ptr.0.cast())) };
+    Some(aumid)
 }
 
 #[cfg(target_os = "windows")]
@@ -91,16 +89,38 @@ fn package_aumid_set() -> bool {
     matches!(rc.0, 0 | 122)
 }
 
+fn notifier_aumid<T>(has_package_aumid: bool, explicit: impl FnOnce() -> Option<T>) -> Option<T> {
+    if has_package_aumid { None } else { explicit() }
+}
+
 #[cfg(target_os = "windows")]
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    let notifier = ToastNotificationManager::CreateToastNotifier()
-        .map_err(|err| classify_hresult(err.code().0))?;
+    // Package identity wins even if a desktop host also sets an explicit AUMID.
+    // Only unpackaged desktop apps pass their explicit ID to the notifier.
+    let aumid = notifier_aumid(package_aumid_set(), explicit_aumid);
+    let notifier = match &aumid {
+        Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(aumid),
+        None => ToastNotificationManager::CreateToastNotifier(),
+    }
+    .map_err(|err| {
+        #[cfg(test)]
+        eprintln!(
+            "CreateToastNotifier failed: aumid={aumid:?}, HRESULT=0x{:08X}, error={err}",
+            err.code().0 as u32,
+        );
+        classify_hresult(err.code().0)
+    })?;
 
-    let setting = notifier
-        .Setting()
-        .map_err(|err| classify_hresult(err.code().0))?;
+    let setting = notifier.Setting().map_err(|err| {
+        #[cfg(test)]
+        eprintln!(
+            "ToastNotifier.Setting failed: aumid={aumid:?}, HRESULT=0x{:08X}, error={err}",
+            err.code().0 as u32,
+        );
+        classify_hresult(err.code().0)
+    })?;
 
     Ok(map_notification_setting(setting.0))
 }
@@ -108,6 +128,20 @@ pub fn read_authorization() -> Result<Authorization, AuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_identity_takes_precedence_over_explicit_aumid() {
+        for aumid in [None, Some("desktop.app")] {
+            assert_eq!(notifier_aumid(true, || aumid), None);
+            assert_eq!(notifier_aumid(false, || aumid), aumid);
+        }
+        assert_eq!(
+            notifier_aumid::<&str>(true, || panic!(
+                "package identity must skip explicit lookup"
+            )),
+            None,
+        );
+    }
 
     #[test]
     fn maps_documented_notification_setting_values() {

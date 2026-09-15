@@ -90,6 +90,24 @@ jobs:
       - name: test Windows Rust lifecycle
         if: matrix.target == 'x86_64-pc-windows-msvc'
         run: cargo test --locked --lib -- --test-threads=1
+      - name: test registered Windows desktop app
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: cargo test --locked --lib -- --exact windows::registered_app_tests::registered_aumid_queries_preserve_winrt_lifecycle --include-ignored --test-threads=1 --nocapture
+      - name: build ARM64 Rust test executable
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $messages = cargo test --locked --lib --target aarch64-pc-windows-msvc --no-run --message-format=json | ForEach-Object { $_ | ConvertFrom-Json }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tests = @($messages | Where-Object { $_.reason -eq 'compiler-artifact' -and $_.target.name -eq 'notify_status' -and $_.profile.test -and $_.executable })
+          if ($tests.Count -ne 1) { throw "Expected exactly one Rust test executable" }
+          Copy-Item $tests[0].executable target/notify-status-tests-arm64.exe
+      - uses: actions/upload-artifact@v7
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        with:
+          name: rust-tests-aarch64-pc-windows-msvc
+          path: target/notify-status-tests-arm64.exe
+          if-no-files-found: error
       - name: build ts (vp pack)
         run: vp pack
       - uses: actions/upload-artifact@v7
@@ -151,9 +169,8 @@ jobs:
       - run: vp test
 
   arm64-smoke:
-    # Cross-compiled aarch64-pc-windows-msvc produces a .node binary that's
-    # never executed on ARM64 in the build job. This load-test on a
-    # GitHub-hosted ARM64 Windows runner verifies the binary actually loads.
+    # Execute the cross-compiled Rust tests on ARM64, including direct WNF calls
+    # that bypass the no-AUMID early return, then check the Node entry points.
     name: smoke / windows-11-arm
     needs: build
     runs-on: windows-11-arm
@@ -167,6 +184,16 @@ jobs:
         with:
           name: bindings-aarch64-pc-windows-msvc
           path: .
+      - uses: actions/download-artifact@v8
+        with:
+          name: rust-tests-aarch64-pc-windows-msvc
+          path: target
+      - name: test ARM64 native WNF and WinRT lifecycle
+        env:
+          NOTIFY_STATUS_TEST_ARCH: aarch64
+        run: ./target/notify-status-tests-arm64.exe --test-threads=1 --nocapture
+      - name: test registered ARM64 Windows desktop app
+        run: ./target/notify-status-tests-arm64.exe --exact windows::registered_app_tests::registered_aumid_queries_preserve_winrt_lifecycle --include-ignored --test-threads=1 --nocapture
       - run: vp install --frozen-lockfile
       - run: vp pack
       - name: smoke load (ESM)
