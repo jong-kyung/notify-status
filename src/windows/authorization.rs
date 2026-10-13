@@ -55,8 +55,9 @@ pub fn classify_hresult(hresult_raw: i32) -> AuthError {
 }
 
 #[cfg(target_os = "windows")]
-pub fn has_aumid() -> bool {
-    explicit_aumid().is_some() || package_aumid_set()
+pub fn resolve_aumid() -> Result<Option<windows::core::HSTRING>, AuthError> {
+    // Package identity wins even if a desktop host also sets an explicit AUMID.
+    notifier_aumid(package_aumid_set(), explicit_aumid)
 }
 
 #[cfg(target_os = "windows")]
@@ -89,18 +90,24 @@ fn package_aumid_set() -> bool {
     matches!(rc.0, 0 | 122)
 }
 
-fn notifier_aumid<T>(has_package_aumid: bool, explicit: impl FnOnce() -> Option<T>) -> Option<T> {
-    if has_package_aumid { None } else { explicit() }
+fn notifier_aumid<T>(
+    has_package_aumid: bool,
+    explicit: impl FnOnce() -> Option<T>,
+) -> Result<Option<T>, AuthError> {
+    if has_package_aumid {
+        Ok(None)
+    } else {
+        explicit().map(Some).ok_or(AuthError::NoAumid)
+    }
 }
 
 #[cfg(target_os = "windows")]
-pub fn read_authorization() -> Result<Authorization, AuthError> {
+pub fn read_authorization(
+    aumid: Option<&windows::core::HSTRING>,
+) -> Result<Authorization, AuthError> {
     use windows::UI::Notifications::ToastNotificationManager;
 
-    // Package identity wins even if a desktop host also sets an explicit AUMID.
-    // Only unpackaged desktop apps pass their explicit ID to the notifier.
-    let aumid = notifier_aumid(package_aumid_set(), explicit_aumid);
-    let notifier = match &aumid {
+    let notifier = match aumid {
         Some(aumid) => ToastNotificationManager::CreateToastNotifierWithId(aumid),
         None => ToastNotificationManager::CreateToastNotifier(),
     }
@@ -131,15 +138,19 @@ mod tests {
 
     #[test]
     fn package_identity_takes_precedence_over_explicit_aumid() {
-        for aumid in [None, Some("desktop.app")] {
-            assert_eq!(notifier_aumid(true, || aumid), None);
-            assert_eq!(notifier_aumid(false, || aumid), aumid);
+        for (packaged, explicit, expected) in [
+            (true, None, Ok(None)),
+            (true, Some("desktop.app"), Ok(None)),
+            (false, None, Err(AuthError::NoAumid)),
+            (false, Some("desktop.app"), Ok(Some("desktop.app"))),
+        ] {
+            assert_eq!(notifier_aumid(packaged, || explicit), expected);
         }
         assert_eq!(
             notifier_aumid::<&str>(true, || panic!(
                 "package identity must skip explicit lookup"
             )),
-            None,
+            Ok(None),
         );
     }
 

@@ -4,7 +4,7 @@
 //! 1. `RoInitialize(MULTITHREADED)` — required before any WinRT call. Tolerate
 //!    `RPC_E_CHANGED_MODE` (host already initialised STA). Balance every success
 //!    with `RoUninitialize` and map other initialization failures to `internalError`.
-//! 2. AUMID pre-flight (explicit OR package). If neither is set → `noAumid`.
+//! 2. Resolve AUMID once, preferring package identity. If neither is set, return `noAumid`.
 //! 3. `CreateToastNotifier().Setting()` — map HRESULT failures to `noAumid`
 //!    (race-window) or `internalError` (anything else).
 //! 4. `quiet_hours::read_dnd()` — best-effort, never fails. Filled by U7.
@@ -62,13 +62,13 @@ fn query_inner_with_initialize(
         Err(_) => return NotificationStatus::unsupported("win32", Reason::InternalError),
     };
 
-    if !authorization::has_aumid() {
+    let Ok(aumid) = authorization::resolve_aumid() else {
         return NotificationStatus::unsupported("win32", Reason::NoAumid);
-    }
+    };
 
     let dnd = quiet_hours::read_dnd();
 
-    match authorization::read_authorization() {
+    match authorization::read_authorization(aumid.as_ref()) {
         Ok(auth) => NotificationStatus {
             authorization: auth,
             do_not_disturb: dnd,
