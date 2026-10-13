@@ -78,7 +78,7 @@ adds an `onChange` subscription API.
 
 ```js
 // Electron main process
-import { app, Notification } from 'electron';
+import { app, ipcMain } from 'electron';
 import { getNotificationStatus, isEffectivelyEnabled } from 'notify-status';
 
 // Set AUMID early — required for Windows reporting to work.
