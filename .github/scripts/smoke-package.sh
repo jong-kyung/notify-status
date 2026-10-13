@@ -9,10 +9,10 @@ attempt=1
 until [ "$attempt" -gt 5 ]; do
   install_dir="$(mktemp -d)"
   if (
-    set -euo pipefail
-    cd "$install_dir"
-    npm init -y >/dev/null
-    npm install "notify-status@$version"
+    # Bash ignores errexit inside an if condition, so guard each setup command.
+    cd "$install_dir" || exit 1
+    npm init -y >/dev/null || exit 1
+    npm install "notify-status@$version" || exit 1
 
     # The root package must load the platform's optional dependency.
     if compgen -G 'node_modules/notify-status/*.node' > /dev/null; then
@@ -20,7 +20,7 @@ until [ "$attempt" -gt 5 ]; do
       exit 1
     fi
 
-    cat > check.cjs <<'EOF'
+    cat > check.cjs <<'EOF' || exit 1
 const assert = require('node:assert')
 const m = require('notify-status')
 m.getNotificationStatus().then((r) => {
@@ -31,7 +31,7 @@ m.getNotificationStatus().then((r) => {
   }
 })
 EOF
-    cat > check.mjs <<'EOF'
+    cat > check.mjs <<'EOF' || exit 1
 import assert from 'node:assert'
 import { getNotificationStatus } from 'notify-status'
 const r = await getNotificationStatus()
