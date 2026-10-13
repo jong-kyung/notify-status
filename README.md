@@ -66,7 +66,9 @@ the host's notification permission state. The `reason` field discriminates:
 | `'noBundleId'`          | macOS only. The host process has no `Bundle.bundleIdentifier` (naked `node`, unbundled scripts, some Electron dev environments).      | Ensure the app is launched via a bundled `.app` with `CFBundleIdentifier` set in `Info.plist`.                                                                         |
 | `'noAumid'`             | Windows only. The process has no Application User Model ID.                                                                           | Call `app.setAppUserModelId('com.example.YourApp')` early in your Electron main process, or install via a packaged installer (Squirrel, MSIX) that registers an AUMID. |
 | `'unsupportedPlatform'` | Linux / BSD / unknown.                                                                                                                | No remediation; treat notifications as best-effort and fall back to in-app indicators.                                                                                 |
-| `'internalError'`       | A library/runtime failure occurred (unmapped HRESULT, panic, JoinError, parse failure, caught NSException not from a missing bundle). | This is the signal you want in your telemetry to spot regressions — distinct from environmental issues above.                                                          |
+| `'internalError'`       | A library/runtime failure occurred (unmapped HRESULT, panic, JoinError, caught NSException not from a missing bundle). | This is the signal you want in your telemetry to spot regressions — distinct from environmental issues above.                                                          |
+
+On macOS, DND detection is best-effort. Read failures, malformed JSON, or an unexpected data format produce `doNotDisturb: false` and do not themselves cause `internalError`. A false value therefore does not guarantee that DND is disabled.
 
 ## Recommended integration pattern
 
