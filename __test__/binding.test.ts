@@ -9,14 +9,57 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { version } from "../package.json";
 
-// Only the optional package is present, so a local .node cannot bypass the
-// version check. Platform overrides and environment changes stay in the child.
-describe.each([
+const NATIVE_TARGETS = [
   { platform: "darwin", arch: "arm64", suffix: "darwin-arm64" },
   { platform: "darwin", arch: "x64", suffix: "darwin-x64" },
   { platform: "win32", arch: "arm64", suffix: "win32-arm64-msvc" },
   { platform: "win32", arch: "x64", suffix: "win32-x64-msvc" },
-])("native loader ($suffix)", ({ platform, arch, suffix }) => {
+];
+
+test("root package includes its entry points and loader but no native binaries", () => {
+  const directory = mkdtempSync(join(tmpdir(), "notify-status-pack-"));
+  const requiredFiles = [
+    "package.json",
+    "binding.cjs",
+    "binding.d.cts",
+    "README.md",
+    "LICENSE",
+    "dist/index.cjs",
+    "dist/index.mjs",
+    "dist/index.d.cts",
+    "dist/index.d.mts",
+  ];
+  try {
+    mkdirSync(join(directory, "dist"));
+    copyFileSync(new URL("../package.json", import.meta.url), join(directory, "package.json"));
+    // Only filenames matter to npm pack. This also runs before the TS build.
+    for (const file of requiredFiles.slice(1)) {
+      writeFileSync(join(directory, file), "");
+    }
+    for (const { suffix } of NATIVE_TARGETS) {
+      writeFileSync(join(directory, `notify-status.${suffix}.node`), "");
+    }
+    const child = spawnSync("npm", ["pack", "--dry-run", "--ignore-scripts", "--json"], {
+      cwd: directory,
+      encoding: "utf8",
+      timeout: 30_000,
+      // Windows resolves npm.cmd through the shell; all arguments are literals.
+      shell: process.platform === "win32",
+    });
+    expect(child.error).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+    const [packed] = JSON.parse(child.stdout) as { files: { path: string }[] }[];
+    const files = packed!.files.map((file) => file.path);
+    expect(files).toEqual(expect.arrayContaining(requiredFiles));
+    expect(files.filter((file) => file.endsWith(".node"))).toEqual([]);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+// Only the optional package is present, so a local .node cannot bypass the
+// version check. Platform overrides and environment changes stay in the child.
+describe.each(NATIVE_TARGETS)("native loader ($suffix)", ({ platform, arch, suffix }) => {
   test.each(["matching", "mismatched"])("%s package version with strict checks", (match) => {
     const directory = mkdtempSync(join(tmpdir(), "notify-status-binding-"));
     const nativeVersion = match === "matching" ? version : "0.0.0";

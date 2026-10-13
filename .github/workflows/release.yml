@@ -388,9 +388,11 @@ jobs:
               npm init -y >/dev/null
               npm install "notify-status@$VERSION"
 
-              # In this temporary install, force the optional-package path so
-              # bundled addons cannot bypass the strict version check.
-              rm -f node_modules/notify-status/*.node
+              # The root package must load the platform's optional dependency.
+              if compgen -G 'node_modules/notify-status/*.node' > /dev/null; then
+                echo "::error::The root package must not bundle native addons"
+                exit 1
+              fi
 
               cat > check.cjs <<'EOF'
           const assert = require('node:assert')
