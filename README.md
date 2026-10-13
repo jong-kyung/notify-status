@@ -64,9 +64,11 @@ the host's notification permission state. The `reason` field discriminates:
 | `reason`                | Meaning                                                                                                                               | What the consumer should do                                                                                                                                            |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `'noBundleId'`          | macOS only. The host process has no `Bundle.bundleIdentifier` (naked `node`, unbundled scripts, some Electron dev environments).      | Ensure the app is launched via a bundled `.app` with `CFBundleIdentifier` set in `Info.plist`.                                                                         |
-| `'noAumid'`             | Windows only. The process has no Application User Model ID.                                                                           | Call `app.setAppUserModelId('com.example.YourApp')` early in your Electron main process, or install via a packaged installer (Squirrel, MSIX) that registers an AUMID. |
+| `'noAumid'`             | Windows only. The Application User Model ID is missing or unusable by the notification subsystem. | Check the app's Windows registration. For an unpackaged Electron app, set the matching AUMID early with `app.setAppUserModelId('com.example.YourApp')`. |
 | `'unsupportedPlatform'` | Linux / BSD / unknown.                                                                                                                | No remediation; treat notifications as best-effort and fall back to in-app indicators.                                                                                 |
 | `'internalError'`       | A library/runtime failure occurred (unmapped HRESULT, panic, JoinError, caught NSException not from a missing bundle). | This is the signal you want in your telemetry to spot regressions — distinct from environmental issues above.                                                          |
+
+On Windows, setting an AUMID alone does not complete notification registration. For unpackaged desktop apps, verify that the installer registers a Start Menu shortcut with the same AUMID. A new unpackaged app may also have no notification settings record until its first toast, so the query can still return `noAumid` after setting the identifier. This library is read-only and does not register apps or send notifications to create that record.
 
 On macOS, DND detection is best-effort. Read failures, malformed JSON, or an unexpected data format produce `doNotDisturb: false` and do not themselves cause `internalError`. A false value therefore does not guarantee that DND is disabled.
 
@@ -78,7 +80,7 @@ adds an `onChange` subscription API.
 
 ```js
 // Electron main process
-import { app, Notification } from 'electron';
+import { app, ipcMain } from 'electron';
 import { getNotificationStatus, isEffectivelyEnabled } from 'notify-status';
 
 // Set AUMID early — required for Windows reporting to work.
@@ -162,7 +164,7 @@ function explain(status: NotificationStatus): string {
 function remediate(reason?: Reason): string {
   switch (reason) {
     case 'noBundleId':          return 'unsupported:add_bundle_id_to_app';
-    case 'noAumid':             return 'unsupported:set_aumid_on_startup';
+    case 'noAumid':             return 'unsupported:check_aumid_registration';
     case 'unsupportedPlatform': return 'unsupported:platform';
     case 'internalError':       return 'unsupported:internal_error';
     case undefined:             return 'unsupported:unknown';
