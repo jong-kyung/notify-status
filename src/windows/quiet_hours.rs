@@ -107,11 +107,6 @@ fn read_dnd_via_wnf() -> bool {
     )
 }
 
-#[cfg(not(target_os = "windows"))]
-fn read_dnd_via_wnf() -> bool {
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
