@@ -84,13 +84,6 @@ fn query_inner_with_initialize(
     }
 }
 
-// On non-windows builds (tests on macOS) the inner function is a stub so the
-// pure mapping/classification tests in authorization.rs still compile.
-#[cfg(not(target_os = "windows"))]
-fn query_inner() -> NotificationStatus {
-    NotificationStatus::unsupported("win32", Reason::InternalError)
-}
-
 #[cfg(all(test, target_os = "windows"))]
 mod registered_app_tests;
 
