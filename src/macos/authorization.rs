@@ -7,7 +7,7 @@
 //!   that to `unsupported(...)`.
 
 use std::ptr::NonNull;
-use std::sync::mpsc::{RecvTimeoutError, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, sync_channel};
 use std::time::Duration;
 
 use crate::status::Authorization;
@@ -25,7 +25,7 @@ pub const CALLBACK_TIMEOUT: Duration = Duration::from_secs(2);
 pub enum AuthError {
     /// The UN callback did not fire within `CALLBACK_TIMEOUT`.
     Timeout,
-    /// The callback fired but the sending half was already dropped.
+    /// The callback was dropped without sending a result.
     ChannelClosed,
 }
 
@@ -43,13 +43,28 @@ pub fn map_authorization_status(raw: i64) -> Authorization {
     }
 }
 
+fn authorization_channel() -> (impl Fn(i64), Receiver<i64>) {
+    let (tx, rx) = sync_channel(1);
+    let callback = move |raw| {
+        let _ = tx.try_send(raw); // Ignore callbacks after the receiver has timed out.
+    };
+    (callback, rx)
+}
+
+fn receive_authorization(rx: Receiver<i64>, timeout: Duration) -> Result<Authorization, AuthError> {
+    match rx.recv_timeout(timeout) {
+        Ok(raw) => Ok(map_authorization_status(raw)),
+        Err(RecvTimeoutError::Timeout) => Err(AuthError::Timeout),
+        Err(RecvTimeoutError::Disconnected) => Err(AuthError::ChannelClosed),
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub fn read_authorization() -> Result<Authorization, AuthError> {
     use block2::RcBlock;
     use objc2_user_notifications::{UNNotificationSettings, UNUserNotificationCenter};
 
-    let (tx, rx) = sync_channel::<i64>(1);
-    let tx_block = tx.clone();
+    let (callback, rx) = authorization_channel();
 
     // RcBlock (heap-allocated, ref-counted) is required because the framework
     // may invoke the callback on its own queue after the calling code has
@@ -58,24 +73,48 @@ pub fn read_authorization() -> Result<Authorization, AuthError> {
         // SAFETY: The framework guarantees `settings` is a valid pointer for
         // the duration of the callback invocation.
         let raw = unsafe { settings.as_ref().authorizationStatus().0 };
-        let _ = tx_block.try_send(raw as i64); // late fire on closed channel: swallow
+        callback(raw as i64);
     });
 
     let center = UNUserNotificationCenter::currentNotificationCenter();
     center.getNotificationSettingsWithCompletionHandler(&block);
 
-    drop(tx); // drop our retained sender so a late-fire actually closes the channel
-
-    match rx.recv_timeout(CALLBACK_TIMEOUT) {
-        Ok(raw) => Ok(map_authorization_status(raw)),
-        Err(RecvTimeoutError::Timeout) => Err(AuthError::Timeout),
-        Err(RecvTimeoutError::Disconnected) => Err(AuthError::ChannelClosed),
-    }
+    receive_authorization(rx, CALLBACK_TIMEOUT)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queued_callback_status_is_mapped() {
+        let (callback, rx) = authorization_channel();
+        callback(2);
+        assert!(matches!(
+            receive_authorization(rx, Duration::ZERO),
+            Ok(Authorization::Granted)
+        ));
+    }
+
+    #[test]
+    fn missing_callback_times_out_and_late_callback_is_ignored() {
+        let (callback, rx) = authorization_channel();
+        assert!(matches!(
+            receive_authorization(rx, Duration::ZERO),
+            Err(AuthError::Timeout)
+        ));
+        callback(2);
+    }
+
+    #[test]
+    fn dropped_callback_returns_channel_closed() {
+        let (callback, rx) = authorization_channel();
+        drop(callback);
+        assert!(matches!(
+            receive_authorization(rx, Duration::ZERO),
+            Err(AuthError::ChannelClosed)
+        ));
+    }
 
     #[test]
     fn maps_documented_un_authorization_status_values() {
