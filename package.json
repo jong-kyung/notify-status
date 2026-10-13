@@ -36,7 +36,6 @@
     "dist/",
     "binding.cjs",
     "binding.d.cts",
-    "*.node",
     "README.md",
     "LICENSE"
   ],
