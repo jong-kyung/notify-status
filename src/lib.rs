@@ -20,8 +20,12 @@ pub use status::{Authorization, NotificationStatus, Reason};
 ///
 /// The returned Promise NEVER rejects. Environmental failures collapse to
 /// `{ authorization: 'unsupported', reason: 'noBundleId' | 'noAumid' | 'unsupportedPlatform' }`,
-/// and library/runtime failures (panics, JoinError, unmapped HRESULTs, parse failures)
+/// and library or runtime failures such as panics, JoinError, and unmapped HRESULTs
 /// collapse to `reason: 'internalError'`.
+///
+/// macOS DND detection is best-effort. Read or parse failures produce
+/// `doNotDisturb: false` and do not themselves cause `internalError`.
+/// A false value therefore does not guarantee that DND is disabled.
 #[napi]
 pub async fn get_notification_status() -> napi::Result<NotificationStatus> {
     Ok(run_platform_query().await.unwrap_or_else(internal_error))

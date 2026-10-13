@@ -16,8 +16,12 @@ export type Authorization = 'granted' | 'denied' | 'notDetermined' | 'unsupporte
  *
  * The returned Promise NEVER rejects. Environmental failures collapse to
  * `{ authorization: 'unsupported', reason: 'noBundleId' | 'noAumid' | 'unsupportedPlatform' }`,
- * and library/runtime failures (panics, JoinError, unmapped HRESULTs, parse failures)
+ * and library or runtime failures such as panics, JoinError, and unmapped HRESULTs
  * collapse to `reason: 'internalError'`.
+ *
+ * macOS DND detection is best-effort. Read or parse failures produce
+ * `doNotDisturb: false` and do not themselves cause `internalError`.
+ * A false value therefore does not guarantee that DND is disabled.
  */
 export declare function getNotificationStatus(): Promise<NotificationStatus>
 
