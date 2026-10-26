@@ -87,7 +87,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.8.0",
+      "version": "11.28.8",
       "onFail": "warn"
     }
   },
