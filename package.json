@@ -68,9 +68,9 @@
     "prepare": "vp config"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.8",
+    "@napi-rs/cli": "^3.10.9",
     "@types/node": "^24.19.2",
-    "electron": "^44.7.2",
+    "electron": "^44.9.3",
     "typescript": "~7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
